@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analysis &amp; Bot — Crownfall Chess</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">♛</span>
+      <span>CROWNFALL</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/lobby" class="nav-link">Play Online</a>
+      <a href="/friends" class="nav-link">Friends</a>
+      <a href="/analysis" class="nav-link active">Analysis &amp; Bot</a>
+      <a href="/rules" class="nav-link">Rules &amp; Guide</a>
+      <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
+    </div>
+  </nav>
+
+  <main class="arena-shell">
+    <div class="board-column">
+      <div class="player-bar">
+        <div class="player-info">
+          <div class="avatar black">AI</div>
+          <div class="player-meta">
+            <div class="player-name-row">
+              <span id="mode-title">Free Analysis &amp; Bot Arena</span>
+            </div>
+            <div id="best-move-hint" class="captured-row">Best move: calculating...</div>
+          </div>
+        </div>
+        <div id="turn-badge" class="clock" style="font-size: 0.9rem; min-width: 110px;">White Turn</div>
+      </div>
+
+      <div class="board-and-eval">
+        <div class="eval-wrapper">
+          <div id="eval-score" class="eval-score">0.0</div>
+          <div id="eval-bar" class="eval-bar">
+            <div id="eval-fill-white" class="eval-fill-white"></div>
+            <div class="eval-midline"></div>
+          </div>
+        </div>
+
+        <div class="board-frame">
+          <div id="chessboard" class="chessboard"></div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="sidebar">
+      <div class="panel">
+        <div class="panel-header"><span>Mode &amp; Theme</span></div>
+        <div class="form-group" style="margin-bottom: 8px;">
+          <select id="mode-select" class="select">
+            <option value="analysis">Free Analysis (Both Sides)</option>
+            <option value="bot-easy">Play vs Bot (Easy — Depth 1)</option>
+            <option value="bot-med">Play vs Bot (Medium — Depth 2)</option>
+            <option value="bot-hard">Play vs Bot (Hard — Depth 3)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 10px;">
+          <select id="theme-select" class="select" aria-label="Board Theme">
+            <option value="emerald">Theme: Emerald Slate</option>
+            <option value="walnut">Theme: Classic Walnut</option>
+            <option value="ocean">Theme: Midnight Ocean</option>
+            <option value="obsidian">Theme: Obsidian Gold</option>
+            <option value="rosewood">Theme: Rosewood Marble</option>
+          </select>
+        </div>
+        <div class="controls-grid">
+          <button id="flip-btn" class="btn btn-sm">Flip Board</button>
+          <button id="reset-btn" class="btn btn-sm btn-danger">Reset Board</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><span>Recent Games (Last 3)</span></div>
+        <div id="recent-games-list" class="saved-games-list"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><span>Move History</span></div>
+        <div id="move-list" class="move-list" style="height: 200px;"></div>
+        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-top:10px;">
+          <button id="nav-start" class="btn btn-sm">|&lt;</button>
+          <button id="nav-prev" class="btn btn-sm">&lt;</button>
+          <button id="nav-next" class="btn btn-sm">&gt;</button>
+          <button id="nav-end" class="btn btn-sm">&gt;|</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><span>FEN Position</span></div>
+        <input id="fen-input" class="input" type="text" style="font-family:var(--font-mono); font-size:0.78rem; margin-bottom:8px;" />
+        <button id="load-fen-btn" class="btn btn-sm btn-primary" style="width:100%;">Load FEN</button>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/shared/chess-engine.js"></script>
+  <script src="/js/pieces.js"></script>
+  <script src="/js/sound.js"></script>
+  <script src="/js/storage.js"></script>
+  <script src="/js/analysis.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/nav.js"></script>
+</body>
+</html>

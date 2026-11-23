@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crownfall Chess — Real-Time Multiplayer & Live Evaluation</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">♛</span>
+      <span>CROWNFALL</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link active">Home</a>
+      <a href="/lobby" class="nav-link">Play Online</a>
+      <a href="/friends" class="nav-link">Friends</a>
+      <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
+      <a href="/rules" class="nav-link">Rules &amp; Guide</a>
+      <a href="/lobby" class="nav-link cta">Start Match</a>
+      <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <div class="hero-eyebrow">Real-Time 1v1 Chess Arena</div>
+        <h1>Play sharper chess with <span>live evaluation</span> on every move.</h1>
+        <p>
+          Challenge your friends across any device with instant room links, server-authoritative clocks,
+          and a live side evaluation bar that tracks momentum in real time.
+        </p>
+        <div class="hero-actions">
+          <a href="/lobby" class="btn btn-primary">Create or Join Match</a>
+          <a href="/analysis" class="btn">Practice vs. Bot &amp; Analysis</a>
+          <a href="/rules" class="btn">Rules &amp; Controls</a>
+        </div>
+      </div>
+
+      <div class="card" style="padding: 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <span style="font-size:0.82rem; font-weight:700; color:var(--gold); letter-spacing:0.06em;">LIVE EVAL PREVIEW</span>
+          <span style="font-family:var(--font-mono); font-size:0.82rem; color:var(--emerald);">+1.4 White</span>
+        </div>
+        <div style="display:flex; gap:12px; align-items:stretch;">
+          <div style="width:18px; border-radius:6px; background:#1b1f27; border:1px solid var(--border-strong); position:relative; overflow:hidden;">
+            <div style="position:absolute; bottom:0; left:0; right:0; height:64%; background:#f4f1ea;"></div>
+          </div>
+          <div id="hero-board" class="chessboard" style="width:100%; max-width:340px; height:auto; aspect-ratio:1/1;"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Multi-Device Rooms</h3>
+        <p>Generate a 6-character room code or shareable invite link in the lobby and play live from phones or laptops.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Side Evaluation Bar</h3>
+        <p>See who stands better during the match with a non-blocking Web Worker evaluation bar and centipawn readout.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>Dedicated Analysis Board</h3>
+        <p>Jump straight from a finished game into the Analysis &amp; Bot page to review key moments or test variations.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/shared/chess-engine.js"></script>
+  <script src="/js/pieces.js"></script>
+  <script>
+    (function () {
+      const boardEl = document.getElementById('hero-board');
+      const game = new CrownfallEngine.ChessGame('r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 4 5');
+      for (let i = 0; i < 64; i++) {
+        const r = Math.floor(i / 8);
+        const c = i % 8;
+        const sq = document.createElement('div');
+        sq.className = 'square ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
+        if (i === 28 || i === 34) sq.classList.add('last-move');
+        const p = game.board[i];
+        if (p) sq.innerHTML = CrownfallPieces.getSvg(p);
+        boardEl.appendChild(sq);
+      }
+    })();
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/nav.js"></script>
+</body>
+</html>

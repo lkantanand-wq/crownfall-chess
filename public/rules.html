@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rules &amp; Guide — Crownfall Chess</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">♛</span>
+      <span>CROWNFALL</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/lobby" class="nav-link">Play Online</a>
+      <a href="/friends" class="nav-link">Friends</a>
+      <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
+      <a href="/rules" class="nav-link active">Rules &amp; Guide</a>
+      <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
+    </div>
+  </nav>
+
+  <main class="container" style="max-width: 900px;">
+    <h1 style="font-size: 2rem; margin-bottom: 10px;">Rules, Live Eval &amp; Controls</h1>
+    <p style="color: var(--text-secondary); margin-bottom: 28px;">Everything you need to know to play, read the live evaluation bar, and review games.</p>
+
+    <div style="display: grid; gap: 18px;">
+      <section class="card">
+        <h2 style="font-size: 1.2rem; color: var(--gold); margin-bottom: 10px;">How the Live Evaluation Bar Works</h2>
+        <p style="color: var(--text-secondary); font-size: 0.95rem;">
+          When enabled in the lobby, a vertical bar appears beside the chessboard. White's portion fills from the bottom (or top if the board is flipped).
+          Positive scores like <code style="color:var(--text-primary);">+1.8</code> favor White; negative scores like <code style="color:var(--text-primary);">-2.3</code> favor Black;
+          <code style="color:var(--text-primary);">M2</code> indicates a forced checkmate in 2 moves. You can toggle the bar anytime with the <strong>Hide/Show Eval</strong> button.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2 style="font-size: 1.2rem; color: var(--gold); margin-bottom: 10px;">Full Chess Rules Supported</h2>
+        <ul style="padding-left: 20px; color: var(--text-secondary); display: grid; gap: 8px; font-size: 0.95rem;">
+          <li><strong>Castling:</strong> Kingside (<code>O-O</code>) and Queenside (<code>O-O-O</code>) when neither king nor rook has moved and squares are unattacked.</li>
+          <li><strong>En Passant:</strong> Immediate diagonal pawn capture after an opponent's two-square pawn advance.</li>
+          <li><strong>Pawn Promotion:</strong> Choose Queen, Rook, Bishop, or Knight when a pawn reaches the 8th (or 1st) rank.</li>
+          <li><strong>Draws:</strong> Automatic detection of Stalemate, Threefold Repetition, 50-Move Rule, and Insufficient Material, plus mutual Draw Offers.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2 style="font-size: 1.2rem; color: var(--gold); margin-bottom: 10px;">Playing Across Different Devices</h2>
+        <p style="color: var(--text-secondary); font-size: 0.95rem;">
+          Click <a href="/lobby" style="color: var(--gold); text-decoration: underline;">Play Online</a>, create a room, and copy the invite link from the arena sidebar.
+          Send that link to your friend on their phone or laptop—as soon as both players open the link, the clocks start automatically.
+        </p>
+      </section>
+    </div>
+  </main>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/nav.js"></script>
+</body>
+</html>

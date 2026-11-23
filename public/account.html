@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account &amp; Game History — Crownfall Chess</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">♛</span>
+      <span>CROWNFALL</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/lobby" class="nav-link">Play Online</a>
+      <a href="/friends" class="nav-link">Friends</a>
+      <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
+      <a href="/account" id="nav-account-link" class="nav-link active">Sign In</a>
+    </div>
+  </nav>
+
+  <main class="container" style="max-width: 960px;">
+    <!-- Auth View -->
+    <div id="auth-section" class="lobby-grid" style="display:none;">
+      <section class="card">
+        <div style="display:flex; gap:10px; margin-bottom:20px;">
+          <button id="tab-login" class="btn btn-sm btn-primary" style="flex:1;">Sign In</button>
+          <button id="tab-register" class="btn btn-sm" style="flex:1;">Create Account</button>
+        </div>
+
+        <form id="login-form">
+          <div class="form-group">
+            <label class="form-label" for="login-id">Username or Email</label>
+            <input id="login-id" class="input" type="text" required placeholder="e.g. alex or alex@example.com" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="login-pw">Password</label>
+            <input id="login-pw" class="input" type="password" required placeholder="••••••••" />
+          </div>
+          <p id="login-err" style="color:var(--danger); font-size:0.85rem; min-height:20px; margin-bottom:10px;"></p>
+          <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
+        </form>
+
+        <form id="register-form" style="display:none;">
+          <div class="form-group">
+            <label class="form-label" for="reg-username">Username</label>
+            <input id="reg-username" class="input" type="text" required minlength="3" maxlength="20" placeholder="e.g. grandmaster_alex" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-name">Display Name</label>
+            <input id="reg-name" class="input" type="text" maxlength="24" placeholder="e.g. Alex" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-email">Email (optional)</label>
+            <input id="reg-email" class="input" type="email" placeholder="alex@example.com" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-pw">Password (min 6 chars)</label>
+            <input id="reg-pw" class="input" type="password" required minlength="6" placeholder="••••••••" />
+          </div>
+          <p id="reg-err" style="color:var(--danger); font-size:0.85rem; min-height:20px; margin-bottom:10px;"></p>
+          <button type="submit" class="btn btn-emerald" style="width:100%;">Create Account</button>
+        </form>
+      </section>
+
+      <section class="card" style="display:flex; flex-direction:column; justify-content:space-between; gap:18px;">
+        <div>
+          <h2 style="font-size:1.25rem; margin-bottom:10px;">Continue with Google</h2>
+          <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:18px;">
+            Sign in with your Google account to save your match history across devices and challenge friends directly.
+          </p>
+          <a id="google-btn" href="/auth/google" class="btn" style="width:100%; background:#fff; color:#111; border-color:#ddd;">
+            <span style="font-weight:800; color:#4285F4;">G</span> Sign in with Google
+          </a>
+          <p id="google-note" style="font-size:0.8rem; color:var(--text-muted); margin-top:10px;"></p>
+        </div>
+        <div style="padding-top:14px; border-top:1px solid var(--border-subtle); font-size:0.84rem; color:var(--text-secondary);">
+          You can also play without signing in — your last 3 games are still saved locally in this browser.
+        </div>
+      </section>
+    </div>
+
+    <!-- Profile & Account History View -->
+    <div id="profile-section" style="display:none; gap:22px;">
+      <section class="card" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px;">
+        <div>
+          <div style="font-size:0.78rem; color:var(--gold); font-weight:700; text-transform:uppercase;">Signed In</div>
+          <h1 id="profile-name" style="font-size:1.7rem;">Player</h1>
+          <div id="profile-meta" style="color:var(--text-secondary); font-size:0.9rem;"></div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a href="/friends" class="btn btn-emerald">Manage Friends</a>
+          <a href="/lobby" class="btn btn-primary">New Match</a>
+          <button id="logout-btn" class="btn btn-danger">Sign Out</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="panel-header" style="margin-bottom:16px;">
+          <span>Saved Account Game History</span>
+          <span id="games-count-badge" style="color:var(--gold);">0 Games</span>
+        </div>
+        <div id="account-games-list" class="saved-games-list"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/account.js"></script>
+</body>
+</html>

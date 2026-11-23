@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Match — Crownfall Chess</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">♛</span>
+      <span>CROWNFALL</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/lobby" class="nav-link">Lobby</a>
+      <a href="/friends" class="nav-link">Friends</a>
+      <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
+      <a href="/rules" class="nav-link">Rules</a>
+      <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
+    </div>
+  </nav>
+
+  <main class="arena-shell">
+    <div class="board-column">
+      <div id="top-player-bar" class="player-bar">
+        <div class="player-info">
+          <div id="top-avatar" class="avatar black">B</div>
+          <div class="player-meta">
+            <div class="player-name-row">
+              <span id="top-dot" class="status-dot"></span>
+              <span id="top-name">Waiting for opponent...</span>
+            </div>
+            <div id="top-captured" class="captured-row"></div>
+          </div>
+        </div>
+        <div id="top-clock" class="clock">10:00</div>
+      </div>
+
+      <div class="board-and-eval">
+        <div id="eval-wrapper" class="eval-wrapper">
+          <div id="eval-score" class="eval-score">0.0</div>
+          <div id="eval-bar" class="eval-bar" title="Live Position Evaluation">
+            <div id="eval-fill-white" class="eval-fill-white"></div>
+            <div class="eval-midline"></div>
+          </div>
+        </div>
+
+        <div class="board-frame">
+          <div id="chessboard" class="chessboard"></div>
+        </div>
+      </div>
+
+      <div id="bottom-player-bar" class="player-bar">
+        <div class="player-info">
+          <div id="bottom-avatar" class="avatar white">W</div>
+          <div class="player-meta">
+            <div class="player-name-row">
+              <span id="bottom-dot" class="status-dot online"></span>
+              <span id="bottom-name">You</span>
+            </div>
+            <div id="bottom-captured" class="captured-row"></div>
+          </div>
+        </div>
+        <div id="bottom-clock" class="clock">10:00</div>
+      </div>
+    </div>
+
+    <aside class="sidebar">
+      <div class="panel">
+        <div class="panel-header">
+          <span>Match Room</span>
+          <span id="time-badge" style="color: var(--gold);">Rapid 10+0</span>
+        </div>
+        <div class="invite-box">
+          <div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">ROOM CODE</div>
+            <div id="room-code-display" class="room-code">------</div>
+          </div>
+          <button id="copy-link-btn" class="btn btn-sm btn-primary">Copy Invite Link</button>
+        </div>
+        <div id="status-banner" style="margin-top: 10px; font-size: 0.86rem; color: var(--text-secondary);">
+          Connecting to room...
+        </div>
+      </div>
+
+      <div id="draw-banner" class="banner-alert" style="display:none;">
+        <span>Opponent offered a draw</span>
+        <div style="display:flex; gap:6px;">
+          <button id="accept-draw-btn" class="btn btn-sm btn-emerald">Accept</button>
+          <button id="decline-draw-btn" class="btn btn-sm btn-danger">Decline</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span>Moves</span>
+          <button id="live-move-btn" class="btn btn-sm" style="display:none;">Back to Live</button>
+        </div>
+        <div id="move-list" class="move-list"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><span>Controls &amp; Theme</span></div>
+        <div class="form-group" style="margin-bottom: 10px;">
+          <select id="theme-select" class="select" aria-label="Board Theme">
+            <option value="emerald">Theme: Emerald Slate</option>
+            <option value="walnut">Theme: Classic Walnut</option>
+            <option value="ocean">Theme: Midnight Ocean</option>
+            <option value="obsidian">Theme: Obsidian Gold</option>
+            <option value="rosewood">Theme: Rosewood Marble</option>
+          </select>
+        </div>
+        <div class="controls-grid">
+          <button id="flip-btn" class="btn btn-sm">Flip Board</button>
+          <button id="toggle-eval-btn" class="btn btn-sm">Hide Eval</button>
+          <button id="draw-btn" class="btn btn-sm">Offer Draw</button>
+          <button id="resign-btn" class="btn btn-sm btn-danger">Resign</button>
+          <button id="sound-btn" class="btn btn-sm" style="grid-column: span 2;">Sound: On</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><span>Match Chat</span></div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <form id="chat-form" class="chat-form">
+          <input id="chat-input" class="input" type="text" maxlength="240" placeholder="Send a message..." style="padding: 8px 12px;" />
+          <button type="submit" class="btn btn-sm btn-primary">Send</button>
+        </form>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Promotion Modal -->
+  <div id="promo-modal" class="modal-backdrop">
+    <div class="modal" style="max-width: 340px;">
+      <h2 style="font-size: 1.25rem; margin-bottom: 14px;">Promote Pawn</h2>
+      <div id="promo-choices" class="promo-choices"></div>
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="gameover-modal" class="modal-backdrop">
+    <div class="modal">
+      <h2 id="gameover-title">Game Over</h2>
+      <p id="gameover-subtitle">Checkmate</p>
+      <div style="display:grid; gap:10px;">
+        <button id="rematch-btn" class="btn btn-primary">Rematch (0/2)</button>
+        <button id="open-analysis-btn" class="btn btn-emerald">Analyze This Game</button>
+        <a href="/lobby" class="btn">Back to Lobby</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/shared/chess-engine.js"></script>
+  <script src="/js/pieces.js"></script>
+  <script src="/js/sound.js"></script>
+  <script src="/js/storage.js"></script>
+  <script src="/js/game.js"></script>
+  <script src="/js/nav.js"></script>
+</body>
+</html>

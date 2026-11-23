@@ -1,0 +1,17 @@
+{
+  "name": "crownfall-chess",
+  "version": "1.0.0",
+  "description": "Crownfall Chess — Real-time multiplayer chess web application with live evaluation bar, server-authoritative clocks, and multi-page UX.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/engine.test.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.1",
+    "socket.io": "^4.8.1"
+  }
+}

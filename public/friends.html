@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Friends &amp; Challenges — Crownfall Chess</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">♛</span>
+      <span>CROWNFALL</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/lobby" class="nav-link">Play Online</a>
+      <a href="/friends" class="nav-link active">Friends</a>
+      <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
+      <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
+    </div>
+  </nav>
+
+  <main class="container" style="max-width: 960px;">
+    <div id="friends-guest" class="card" style="display:none; text-align:center; padding:42px 24px;">
+      <h1 style="font-size:1.7rem; margin-bottom:10px;">Sign in to Add &amp; Challenge Friends</h1>
+      <p style="color:var(--text-secondary); margin-bottom:22px;">
+        Create a free account or sign in with Google to add friends by username or friend code and send instant 1-click match invites across devices.
+      </p>
+      <a href="/account" class="btn btn-primary">Go to Sign In</a>
+    </div>
+
+    <div id="friends-main" style="display:none; gap:24px;">
+      <div class="lobby-grid">
+        <section class="card">
+          <h2 style="font-size:1.25rem; margin-bottom:14px;">Add a Friend</h2>
+          <div class="invite-box" style="margin-bottom:16px;">
+            <div>
+              <div style="font-size:0.72rem; color:var(--text-muted);">YOUR FRIEND CODE</div>
+              <div id="my-friend-code" class="room-code">------</div>
+            </div>
+            <button id="copy-code-btn" class="btn btn-sm">Copy Code</button>
+          </div>
+          <form id="add-friend-form" style="display:flex; gap:8px;">
+            <input id="friend-query" class="input" type="text" required placeholder="Enter username or 6-char friend code" />
+            <button type="submit" class="btn btn-primary">Send Request</button>
+          </form>
+          <p id="friend-msg" style="font-size:0.85rem; margin-top:10px; min-height:20px;"></p>
+        </section>
+
+        <section class="card">
+          <h2 style="font-size:1.25rem; margin-bottom:14px;">Friend Requests</h2>
+          <div id="requests-list" class="saved-games-list"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;">
+          <h2 style="font-size:1.25rem;">Your Friends</h2>
+          <select id="challenge-tc" class="select" style="width:auto;">
+            <option value="1+0">1+0 Bullet</option>
+            <option value="3+2">3+2 Blitz</option>
+            <option value="5+0">5+0 Blitz</option>
+            <option value="10+0" selected>10+0 Rapid</option>
+            <option value="15+10">15+10 Classical</option>
+            <option value="untimed">Untimed</option>
+          </select>
+        </div>
+        <div id="friends-list" class="saved-games-list"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/friends.js"></script>
+</body>
+</html>

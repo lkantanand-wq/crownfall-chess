@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Match Lobby — Crownfall Chess</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">♛</span>
+      <span>CROWNFALL</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/lobby" class="nav-link active">Play Online</a>
+      <a href="/friends" class="nav-link">Friends</a>
+      <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
+      <a href="/rules" class="nav-link">Rules &amp; Guide</a>
+      <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div style="margin-bottom: 24px;">
+      <h1 style="font-size: 2rem; margin-bottom: 6px;">Match Lobby</h1>
+      <p style="color: var(--text-secondary);">Create a private room for your friend or join with a 6-character room code.</p>
+    </div>
+
+    <div class="lobby-grid">
+      <section class="card">
+        <h2 style="font-size: 1.3rem; margin-bottom: 18px;">Create a Private Match</h2>
+
+        <div class="form-group">
+          <label class="form-label" for="host-name">Your Display Name</label>
+          <input id="host-name" class="input" type="text" maxlength="24" placeholder="e.g. Alex" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Time Control</label>
+          <div class="pill-grid" id="tc-pills">
+            <button type="button" class="pill-btn" data-tc="1+0">1+0 Bullet</button>
+            <button type="button" class="pill-btn" data-tc="3+2">3+2 Blitz</button>
+            <button type="button" class="pill-btn" data-tc="5+0">5+0 Blitz</button>
+            <button type="button" class="pill-btn active" data-tc="10+0">10+0 Rapid</button>
+            <button type="button" class="pill-btn" data-tc="15+10">15+10 Classical</button>
+            <button type="button" class="pill-btn" data-tc="untimed">Untimed</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Your Side</label>
+          <div class="pill-grid" id="color-pills">
+            <button type="button" class="pill-btn active" data-color="random">Random</button>
+            <button type="button" class="pill-btn" data-color="w">Play White</button>
+            <button type="button" class="pill-btn" data-color="b">Play Black</button>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight: 600; font-size: 0.94rem;">Live Evaluation Bar</div>
+            <div style="font-size: 0.82rem; color: var(--text-secondary);">Show real-time advantage bar beside the board during play</div>
+          </div>
+          <input id="allow-eval" type="checkbox" checked style="width:20px; height:20px; accent-color: var(--gold); cursor:pointer;" />
+        </div>
+
+        <button id="create-btn" class="btn btn-primary" style="width: 100%; padding: 14px;">
+          Create Room &amp; Enter Arena
+        </button>
+      </section>
+
+      <section class="card">
+        <h2 style="font-size: 1.3rem; margin-bottom: 18px;">Join Friend's Room</h2>
+
+        <div class="form-group">
+          <label class="form-label" for="join-name">Your Display Name</label>
+          <input id="join-name" class="input" type="text" maxlength="24" placeholder="e.g. Sam" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="room-code-input">Room Code or Invite Link</label>
+          <input id="room-code-input" class="input" type="text" placeholder="e.g. K7M9QP" style="text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.08em;" />
+        </div>
+
+        <p id="join-error" style="color: var(--danger); font-size: 0.86rem; min-height: 20px; margin-bottom: 12px;"></p>
+
+        <button id="join-btn" class="btn btn-emerald" style="width: 100%; padding: 14px;">
+          Join Match
+        </button>
+
+        <div style="margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-subtle); font-size: 0.86rem; color: var(--text-secondary);">
+          Playing solo? Head to the <a href="/analysis" style="color: var(--gold); text-decoration: underline;">Analysis &amp; Bot</a> page to test openings or play against the built-in engine.
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/js/lobby.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/nav.js"></script>
+</body>
+</html>
