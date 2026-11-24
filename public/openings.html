@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chess Openings Classroom — Crownfall Chess</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .openings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    .opening-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+      transition: border-color 0.16s ease, transform 0.14s ease;
+    }
+    .opening-card:hover {
+      border-color: var(--gold);
+      transform: translateY(-2px);
+    }
+    .side-pill {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .side-pill.white { background: #f4f1ea; color: #0b0e14; }
+    .side-pill.black { background: #262c3a; color: #f4f1ea; border: 1px solid var(--border-strong); }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">♛</span>
+      <span>CROWNFALL</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/lobby" class="nav-link">Play Online</a>
+      <a href="/friends" class="nav-link">Friends</a>
+      <a href="/openings" class="nav-link active">Openings</a>
+      <a href="/history" class="nav-link nav-auth-only" style="display:none;">History</a>
+      <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
+      <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    <!-- Classroom View (Full 2-Bot Game + Live Eval Bar) -->
+    <section id="classroom-section" style="display:none; margin-bottom:32px;">
+      <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px;">
+        <div>
+          <span id="cls-side-pill" class="side-pill white">For White</span>
+          <h1 id="cls-title" style="font-size:1.7rem; margin-top:6px;">Italian Game (C50)</h1>
+        </div>
+        <button id="cls-back-btn" class="btn btn-sm">← Back to All Openings</button>
+      </div>
+
+      <div class="arena-shell" style="padding:0; max-width:none;">
+        <div class="board-column">
+          <div class="board-and-eval">
+            <div class="eval-wrapper">
+              <div id="cls-eval-score" class="eval-score">0.0</div>
+              <div id="cls-eval-bar" class="eval-bar">
+                <div id="cls-eval-fill" class="eval-fill-white"></div>
+                <div class="eval-midline"></div>
+              </div>
+            </div>
+            <div class="board-frame">
+              <div id="cls-board" class="chessboard"></div>
+              <svg id="cls-arrow-overlay" class="best-arrow-overlay" viewBox="0 0 800 800"></svg>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:8px;">
+            <button id="cls-restart" class="btn btn-sm">|&lt; Restart</button>
+            <button id="cls-prev" class="btn btn-sm">&lt; Prev</button>
+            <button id="cls-play" class="btn btn-sm btn-primary">Pause Bots</button>
+            <button id="cls-next" class="btn btn-sm">Next &gt;</button>
+          </div>
+        </div>
+
+        <aside class="sidebar">
+          <div class="panel">
+            <div class="panel-header">
+              <span>Opening Coach (Full Bot Match)</span>
+              <span id="cls-status" style="color:var(--gold); font-size:0.75rem;">Theory</span>
+            </div>
+            <div class="coach-wrap">
+              <div class="coach-avatar" id="cls-coach-avatar"></div>
+              <div id="cls-coach-bubble" class="coach-bubble">
+                Watching bots play the full game...
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><span>Game Moves</span></div>
+            <div id="cls-moves" class="move-list" style="height:240px;"></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Grid Directory View -->
+    <div id="directory-section">
+      <div style="margin-bottom:24px;">
+        <h1 style="font-size:2rem; margin-bottom:6px;">Chess Openings Explorer</h1>
+        <p style="color:var(--text-secondary);">Pick any world-famous opening for White or Black to watch two bots play the opening theory and continue a full game to checkmate with a live evaluation bar.</p>
+      </div>
+
+      <h2 style="font-size:1.25rem; color:var(--gold); margin-bottom:12px;">Openings for White</h2>
+      <div id="white-openings-grid" class="openings-grid"></div>
+
+      <h2 style="font-size:1.25rem; color:var(--gold); margin-bottom:12px;">Defenses for Black</h2>
+      <div id="black-openings-grid" class="openings-grid"></div>
+    </div>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/shared/chess-engine.js"></script>
+  <script src="/js/pieces.js"></script>
+  <script src="/js/sound.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/openings-data.js"></script>
+  <script>
+    (function () {
+      const E = window.CrownfallEngine;
+      const lessons = window.CROWNFALL_OPENING_LESSONS || [];
+      const whiteGrid = document.getElementById('white-openings-grid');
+      const blackGrid = document.getElementById('black-openings-grid');
+      const dirSec = document.getElementById('directory-section');
+      const clsSec = document.getElementById('classroom-section');
+      const boardEl = document.getElementById('cls-board');
+      const coachBubble = document.getElementById('cls-coach-bubble');
+      const movesEl = document.getElementById('cls-moves');
+      const playBtn = document.getElementById('cls-play');
+      const statusEl = document.getElementById('cls-status');
+      const evalScoreEl = document.getElementById('cls-eval-score');
+      const evalFillEl = document.getElementById('cls-eval-fill');
+      const evalBarEl = document.getElementById('cls-eval-bar');
+
+      document.getElementById('cls-coach-avatar').innerHTML = CrownfallPieces.getSvg('N');
+
+      let activeLesson = null;
+      let liveGame = new E.ChessGame(E.INITIAL_FEN);
+      let builtMoves = [];
+      let stepIdx = 0;
+      let autoTimer = null;
+      let selSq = null;
+      let legTargets = [];
+      let dragOp = null;
+      let opCelebrated = false;
+  function triggerVictoryConfetti() {
+    const colors = ['#e2b754', '#38b87c', '#f4f1ea', '#5c9ce6', '#e25c5c'];
+    for (let i = 0; i < 42; i++) {
+      const c = document.createElement('div');
+      c.className = 'confetti-piece';
+      c.style.left = Math.random() * 100 + 'vw';
+      c.style.background = colors[i % colors.length];
+      c.style.animationDelay = (Math.random() * 0.45) + 's';
+      c.style.transform = `rotate(${Math.random() * 360}deg)`;
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 2600);
+    }
+  }
+
+      function classifyUserMove(cpLoss, isSac) {
+        if (cpLoss <= 15 && isSac) return { label: 'Brilliant', symbol: '!!', color: '#26c6da' };
+        if (cpLoss <= 15) return { label: 'Best', symbol: '★', color: '#81b64c' };
+        if (cpLoss <= 35) return { label: 'Excellent', symbol: '✓', color: '#96bc4b' };
+        if (cpLoss <= 80) return { label: 'Good', symbol: '•', color: '#a3b899' };
+        if (cpLoss <= 160) return { label: 'Inaccuracy', symbol: '?!', color: '#f0c15c' };
+        if (cpLoss <= 320) return { label: 'Mistake', symbol: '?', color: '#e58f2a' };
+        return { label: 'Blunder', symbol: '??', color: '#e25c5c' };
+      }
+
+      function tryUserOpeningMove(fromSq, toSq) {
+        stopAutoPlay();
+        const fenAtStep = stepIdx === 0 ? E.INITIAL_FEN : builtMoves[stepIdx - 1].fenAfter;
+        const gBefore = new E.ChessGame(fenAtStep);
+        const mover = gBefore.turn;
+        const bestRes = gBefore.searchBestMove(2);
+        let bestSan = null;
+        if (bestRes.bestMove) {
+          const tmp = gBefore.clone();
+          const bm = tmp.makeMove(bestRes.bestMove);
+          bestSan = bm ? bm.san : `${bestRes.bestMove.from}→${bestRes.bestMove.to}`;
+        }
+
+        const mv = gBefore.makeMove({ from: fromSq, to: toSq, promotion: 'q' });
+        if (!mv) return;
+
+        const afterRes = gBefore.searchBestMove(1);
+        const bestCp = mover === 'w' ? bestRes.scoreCp : -bestRes.scoreCp;
+        const afterCp = mover === 'w' ? afterRes.scoreCp : -afterRes.scoreCp;
+        const same = bestRes.bestMove && bestRes.bestMove.from === mv.from && bestRes.bestMove.to === mv.to;
+        const cpLoss = same ? 0 : Math.max(0, bestCp - afterCp);
+        const movedVal = E.PIECE_VALUES[E.pieceType(mv.piece)] || 100;
+        const capVal = mv.captured ? (E.PIECE_VALUES[E.pieceType(mv.captured)] || 0) : 0;
+        const isSac = movedVal > capVal + 100 && gBefore.isSquareAttacked(E.algebraicToIdx(mv.to), gBefore.turn);
+        const rating = classifyUserMove(cpLoss, isSac && !mv.san.includes('='));
+
+        liveGame = gBefore;
+        builtMoves = builtMoves.slice(0, stepIdx);
+        const altMsg = bestSan && bestSan !== mv.san ? ` Best was <strong>${bestSan}</strong>.` : ' Top engine choice!';
+        builtMoves.push({
+          san: mv.san,
+          from: mv.from,
+          to: mv.to,
+          fenAfter: mv.fenAfter,
+          scoreCp: afterRes.scoreCp,
+          mateIn: afterRes.mateIn,
+          rating,
+          why: `<span style="color:${rating.color}; font-weight:800;">${rating.symbol} ${rating.label}</span> — ${mv.san}${cpLoss > 80 ? ` loses ${(cpLoss / 100).toFixed(2)} pawns.` : ' is solid.'}${altMsg}`,
+          isTheory: false,
+          isUserMove: true
+        });
+        stepIdx = builtMoves.length;
+        selSq = null;
+        legTargets = [];
+        if (mv.captured) CrownfallSound.capture();
+        else CrownfallSound.move();
+        renderClassroom();
+      }
+
+      function renderCards() {
+        whiteGrid.innerHTML = '';
+        blackGrid.innerHTML = '';
+        lessons.forEach((op) => {
+          const card = document.createElement('div');
+          card.className = 'opening-card';
+          const linePreview = op.steps.map((s, i) => (i % 2 === 0 ? `${i / 2 + 1}.${s.san}` : s.san)).join(' ');
+          card.innerHTML = `
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span class="side-pill ${op.side.toLowerCase()}">For ${op.side}</span>
+                <span style="font-family:var(--font-mono); font-size:0.78rem; color:var(--gold); font-weight:700;">${op.eco}</span>
+              </div>
+              <h3 style="font-size:1.1rem; margin-bottom:6px;">${op.name}</h3>
+              <p style="font-size:0.84rem; color:var(--text-secondary); margin-bottom:10px;">${op.summary}</p>
+              <div style="font-family:var(--font-mono); font-size:0.76rem; color:var(--text-muted);">${linePreview}</div>
+            </div>
+          `;
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-sm btn-primary';
+          btn.textContent = 'Watch Full Bot Game';
+          btn.addEventListener('click', () => startLesson(op));
+          card.appendChild(btn);
+
+          if (op.side === 'White') whiteGrid.appendChild(card);
+          else blackGrid.appendChild(card);
+        });
+      }
+
+      function updateEvalBar(scoreCp, mateIn) {
+        let label = '0.0', pct = 50;
+        if (mateIn !== null && mateIn !== undefined && mateIn !== 0) {
+          label = `M${Math.abs(mateIn)}`;
+          pct = mateIn > 0 ? 98 : 2;
+        } else {
+          const pawns = (scoreCp || 0) / 100;
+          label = (pawns >= 0 ? '+' : '') + pawns.toFixed(1);
+          pct = Math.max(4, Math.min(96, 50 + 46 * (2 / (1 + Math.exp(-0.0038 * (scoreCp || 0))) - 1)));
+        }
+        evalScoreEl.textContent = label;
+        evalFillEl.style.height = `${pct}%`;
+      }
+
+      function startLesson(op) {
+        activeLesson = op;
+        liveGame = new E.ChessGame(E.INITIAL_FEN);
+        builtMoves = op.steps.map((st) => {
+          const mv = liveGame.makeSanMove(st.san);
+          const ev = liveGame.evaluateStatic();
+          return { ...st, from: mv.from, to: mv.to, san: mv.san, fenAfter: mv.fenAfter, scoreCp: ev, mateIn: null, isTheory: true };
+        });
+        stepIdx = 0;
+
+        dirSec.style.display = 'none';
+        clsSec.style.display = 'block';
+        const pill = document.getElementById('cls-side-pill');
+        pill.className = `side-pill ${op.side.toLowerCase()}`;
+        pill.textContent = `For ${op.side}`;
+        document.getElementById('cls-title').textContent = `${op.name} (${op.eco})`;
+
+        renderClassroom();
+        startAutoPlay();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function advanceOneMove() {
+        if (stepIdx < builtMoves.length) {
+          stepIdx++;
+          CrownfallSound.move();
+          renderClassroom();
+          return true;
+        }
+        const st = liveGame.getStatus();
+        if (st.over || builtMoves.length >= 160) {
+          stopAutoPlay();
+          renderClassroom();
+          return false;
+        }
+        const fenBefore = liveGame.fen();
+        const targetColor = activeLesson.side === 'White' ? 'w' : 'b';
+        const isTargetTurn = liveGame.turn === targetColor;
+        let chosenMove = null;
+        let scoreCp = 0;
+        let mateIn = null;
+
+        if (isTargetTurn) {
+          const strongRes = liveGame.searchBestMove(2);
+          chosenMove = strongRes.bestMove;
+          scoreCp = strongRes.scoreCp;
+          mateIn = strongRes.mateIn;
+        } else {
+          const lines = liveGame.searchMultiPV(2, 3);
+          if (lines.length > 0) {
+            // Only pick a 2nd-best positional move if it doesn't miss a free piece or big tactic (<= 80cp gap)
+            let pickIdx = 0;
+            if (lines.length >= 2 && Math.abs(lines[0].scoreCp - lines[1].scoreCp) <= 80 && Math.random() < 0.7) {
+              pickIdx = 1;
+            }
+            chosenMove = lines[pickIdx].bestMove;
+            scoreCp = lines[pickIdx].scoreCp;
+            mateIn = lines[pickIdx].mateIn;
+          }
+        }
+        if (!chosenMove) {
+          stopAutoPlay();
+          return false;
+        }
+        const mv = liveGame.makeMove(chosenMove);
+        const searchRes = { scoreCp, mateIn };
+        if (!mv) {
+          stopAutoPlay();
+          return false;
+        }
+        const motifs = E.detectTacticalMotifs(fenBefore, mv);
+        const postSt = liveGame.getStatus();
+        let why = `Engine continuation (${motifs.join(', ')}).`;
+        if (postSt.over) {
+          why = postSt.winner === 'draw'
+            ? `Game drawn by ${postSt.reason.replace('_', ' ')}.`
+            : `Checkmate! ${postSt.winner === 'w' ? 'White' : 'Black'} wins!`;
+          CrownfallSound.gameOver();
+        } else if (mv.captured) {
+          CrownfallSound.capture();
+        } else {
+          CrownfallSound.move();
+        }
+        builtMoves.push({
+          san: mv.san,
+          from: mv.from,
+          to: mv.to,
+          fenAfter: mv.fenAfter,
+          scoreCp: searchRes.scoreCp,
+          mateIn: searchRes.mateIn,
+          why,
+          isTheory: false
+        });
+        stepIdx = builtMoves.length;
+        renderClassroom();
+        if (postSt.over) stopAutoPlay();
+        return !postSt.over;
+      }
+
+      function renderClassroom() {
+        const flipped = activeLesson.side === 'Black';
+        evalBarEl.classList.toggle('flipped', flipped);
+        const fen = stepIdx === 0 ? E.INITIAL_FEN : builtMoves[stepIdx - 1].fenAfter;
+        const g = new E.ChessGame(fen);
+        const last = stepIdx > 0 ? builtMoves[stepIdx - 1] : null;
+        const kingCheckIdx = g.inCheck(g.turn) ? g.findKing(g.turn) : -1;
+
+        boardEl.innerHTML = '';
+        for (let rV = 0; rV < 8; rV++) {
+          for (let cV = 0; cV < 8; cV++) {
+            const r = flipped ? 7 - rV : rV, c = flipped ? 7 - cV : cV;
+            const idx = r * 8 + c, sqAlg = E.idxToAlgebraic(idx);
+            const sq = document.createElement('div');
+            sq.className = `square ${(r + c) % 2 === 0 ? 'light' : 'dark'}`;
+            sq.dataset.sq = sqAlg;
+            if (last && (last.from === sqAlg || last.to === sqAlg)) sq.classList.add('last-move');
+            if (selSq === sqAlg) sq.classList.add('selected');
+            if (idx === kingCheckIdx) sq.classList.add('in-check');
+            const p = g.board[idx];
+            if (p) sq.innerHTML = CrownfallPieces.getSvg(p);
+            const curStEnd = g.getStatus();
+            if (curStEnd.over && (p === 'K' || p === 'k')) {
+              const kc = p === 'K' ? 'w' : 'b';
+              const bdg = document.createElement('div');
+              if (curStEnd.winner === 'draw') { bdg.className = 'king-result-badge draw'; bdg.textContent = '½'; }
+              else if (curStEnd.winner === kc) { sq.classList.add('king-win-sq'); bdg.className = 'king-result-badge win'; bdg.textContent = '👑'; }
+              else { sq.classList.add('king-loss-sq'); bdg.className = 'king-result-badge loss'; bdg.textContent = '#'; }
+              sq.appendChild(bdg);
+            }
+            if (legTargets.some((m) => E.idxToAlgebraic(m.to) === sqAlg)) {
+              sq.insertAdjacentHTML('beforeend', `<div class="${p ? 'legal-ring' : 'legal-dot'}"></div>`);
+            }
+            if (last && last.to === sqAlg && last.rating) {
+              const bdg = document.createElement('div');
+              bdg.className = 'board-move-badge';
+              bdg.style.background = last.rating.color;
+              bdg.textContent = last.rating.symbol;
+              sq.appendChild(bdg);
+            }
+            if (p && E.pieceColor(p) === g.turn) {
+              sq.addEventListener('pointerdown', (e) => {
+                if (e.button && e.button !== 0) return;
+                stopAutoPlay();
+                selSq = sqAlg;
+                legTargets = g.legalMoves(sqAlg);
+                const rect = sq.getBoundingClientRect();
+                dragOp = { from: sqAlg, startX: e.clientX, startY: e.clientY, active: false, ghost: null, size: rect.width, p };
+                renderClassroom();
+              });
+            }
+            sq.addEventListener('click', () => {
+              stopAutoPlay();
+              if (selSq && legTargets.some((m) => E.idxToAlgebraic(m.to) === sqAlg)) {
+                tryUserOpeningMove(selSq, sqAlg);
+                return;
+              }
+              if (p && E.pieceColor(p) === g.turn) {
+                selSq = sqAlg;
+                legTargets = g.legalMoves(sqAlg);
+              } else {
+                selSq = null;
+                legTargets = [];
+              }
+              renderClassroom();
+            });
+            boardEl.appendChild(sq);
+          }
+        }
+
+        if (last) {
+          const arrowEl = document.getElementById('cls-arrow-overlay');
+          const pt = (sqA) => {
+            const i = E.algebraicToIdx(sqA);
+            const rr = Math.floor(i / 8), cc = i % 8;
+            return { x: (flipped ? 7 - cc : cc) * 100 + 50, y: (flipped ? 7 - rr : rr) * 100 + 50 };
+          };
+          const a = pt(last.from), b = pt(last.to);
+          const col = (stepIdx - 1) % 2 === 0 ? 'rgba(56, 184, 124, 0.9)' : 'rgba(226, 183, 84, 0.9)';
+          arrowEl.innerHTML = `<defs><marker id="op-arrow" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto"><polygon points="0 0, 4 2, 0 4" fill="${col}"/></marker></defs><line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${col}" stroke-width="14" stroke-linecap="round" marker-end="url(#op-arrow)"/>`;
+          updateEvalBar(last.scoreCp, last.mateIn);
+        } else {
+          document.getElementById('cls-arrow-overlay').innerHTML = '';
+          updateEvalBar(0, null);
+        }
+
+        const curSt = g.getStatus();
+        const opFrame = boardEl.closest('.board-frame');
+        if (curSt.over) {
+          if (opFrame) opFrame.classList.add('victory-pulse');
+          if (!opCelebrated && curSt.winner !== 'draw') { opCelebrated = true; triggerVictoryConfetti(); }
+          statusEl.textContent = curSt.winner === 'draw' ? 'Draw' : `${curSt.winner === 'w' ? 'White' : 'Black'} Wins!`;
+        } else {
+          opCelebrated = false;
+          if (opFrame) opFrame.classList.remove('victory-pulse');
+        }
+        if (!curSt.over && last && !last.isTheory) {
+          statusEl.textContent = 'Bot Match (Live)';
+        } else {
+          statusEl.textContent = 'Opening Theory';
+        }
+
+        if (stepIdx === 0) {
+          coachBubble.innerHTML = `<strong>${activeLesson.name} (${activeLesson.eco})</strong> — ${activeLesson.summary} Bots will play the opening and continue to the end.`;
+        } else {
+          const cur = builtMoves[stepIdx - 1];
+          const mover = cur.isUserMove ? 'You' : ((stepIdx - 1) % 2 === 0 ? 'White Bot' : 'Black Bot');
+          const retryHtml = cur.isUserMove ? ' <button type="button" id="op-retry-btn" class="btn btn-sm btn-primary" style="margin-top:6px; padding:3px 8px; font-size:0.74rem;">Undo &amp; Retry</button>' : '';
+          coachBubble.innerHTML = `<div style="font-weight:800; color:#1b6e44; margin-bottom:4px;">${mover} played ${cur.san}</div><div>${cur.why}</div>${retryHtml}`;
+          const rb = document.getElementById('op-retry-btn');
+          if (rb) rb.addEventListener('click', () => { if (stepIdx > 0) { stepIdx--; builtMoves.pop(); liveGame.load(stepIdx === 0 ? E.INITIAL_FEN : builtMoves[stepIdx - 1].fenAfter); renderClassroom(); } });
+        }
+
+        movesEl.innerHTML = '';
+        for (let i = 0; i < builtMoves.length; i += 2) {
+          movesEl.insertAdjacentHTML('beforeend', `<div class="move-num">${i / 2 + 1}.</div>`);
+          const makeCell = (idx) => {
+            const el = document.createElement('div');
+            el.className = 'move-cell' + (stepIdx === idx + 1 ? ' active' : '');
+            el.textContent = builtMoves[idx].san;
+            el.addEventListener('click', () => { stopAutoPlay(); stepIdx = idx + 1; renderClassroom(); });
+            return el;
+          };
+          movesEl.appendChild(makeCell(i));
+          movesEl.appendChild(builtMoves[i + 1] ? makeCell(i + 1) : document.createElement('div'));
+        }
+        movesEl.scrollTop = movesEl.scrollHeight;
+      }
+
+      function startAutoPlay() {
+        stopAutoPlay();
+        playBtn.textContent = 'Pause Bots';
+        autoTimer = setInterval(advanceOneMove, 950);
+      }
+
+      function stopAutoPlay() {
+        if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+        playBtn.textContent = 'Play Bots';
+      }
+
+      playBtn.addEventListener('click', () => {
+        if (autoTimer) stopAutoPlay();
+        else {
+          if (stepIdx >= builtMoves.length && liveGame.getStatus().over) stepIdx = 0;
+          startAutoPlay();
+        }
+      });
+      document.getElementById('cls-restart').addEventListener('click', () => {
+        stopAutoPlay();
+        if (activeLesson) {
+          liveGame = new E.ChessGame(E.INITIAL_FEN);
+          builtMoves = activeLesson.steps.map((st) => {
+            const mv = liveGame.makeSanMove(st.san);
+            return { ...st, from: mv.from, to: mv.to, san: mv.san, fenAfter: mv.fenAfter, scoreCp: liveGame.evaluateStatic(), mateIn: null, isTheory: true };
+          });
+        }
+        stepIdx = 0; selSq = null; legTargets = [];
+        renderClassroom();
+      });
+      document.getElementById('cls-prev').addEventListener('click', () => {
+        stopAutoPlay();
+        if (stepIdx > 0) {
+          stepIdx--;
+          builtMoves = builtMoves.slice(0, stepIdx);
+          liveGame.load(stepIdx === 0 ? E.INITIAL_FEN : builtMoves[stepIdx - 1].fenAfter);
+          selSq = null; legTargets = [];
+          renderClassroom();
+        }
+      });
+      document.getElementById('cls-next').addEventListener('click', () => { stopAutoPlay(); advanceOneMove(); });
+      document.getElementById('cls-back-btn').addEventListener('click', () => { stopAutoPlay(); clsSec.style.display = 'none'; dirSec.style.display = 'block'; });
+
+      window.addEventListener('pointermove', (e) => {
+        if (!dragOp) return;
+        if (!dragOp.active && Math.hypot(e.clientX - dragOp.startX, e.clientY - dragOp.startY) > 6) {
+          dragOp.active = true;
+          const ghost = document.createElement('div');
+          ghost.style.cssText = `position:fixed; pointer-events:none; z-index:999; width:${dragOp.size}px; height:${dragOp.size}px; display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%) scale(1.12);`;
+          ghost.innerHTML = CrownfallPieces.getSvg(dragOp.p);
+          document.body.appendChild(ghost);
+          dragOp.ghost = ghost;
+        }
+        if (dragOp.active && dragOp.ghost) {
+          dragOp.ghost.style.left = e.clientX + 'px';
+          dragOp.ghost.style.top = e.clientY + 'px';
+        }
+      });
+      window.addEventListener('pointerup', (e) => {
+        if (!dragOp) return;
+        const ds = dragOp; dragOp = null;
+        if (ds.ghost) ds.ghost.remove();
+        if (!ds.active) return;
+        const sqEl = document.elementFromPoint(e.clientX, e.clientY)?.closest('.square[data-sq]');
+        if (sqEl && legTargets.some((m) => E.idxToAlgebraic(m.to) === sqEl.dataset.sq)) {
+          tryUserOpeningMove(ds.from, sqEl.dataset.sq);
+        }
+      });
+
+      renderCards();
+    })();
+  </script>
+</body>
+</html>

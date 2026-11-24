@@ -48,13 +48,41 @@
   async function showProfile(user) {
     authSection.style.display = 'none';
     profileSection.style.display = 'grid';
+
+    const avatarEl = document.getElementById('profile-avatar');
+    avatarEl.textContent = (user.displayName || user.username || 'P').slice(0, 2).toUpperCase();
+
     document.getElementById('profile-name').textContent = user.displayName;
-    document.getElementById('profile-meta').textContent = `@${user.username} • Friend Code: ${user.friendCode}${user.email ? ' • ' + user.email : ''}`;
+    document.getElementById('profile-provider-badge').textContent = user.authProvider === 'google' ? 'Google Account' : 'Crownfall Account';
+    const joinedDate = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Today';
+    document.getElementById('profile-meta').textContent = `@${user.username}${user.email ? ' • ' + user.email : ''} • Joined ${joinedDate}`;
+    document.getElementById('profile-friend-code').textContent = user.friendCode || '------';
+
+    document.getElementById('copy-profile-code').addEventListener('click', () => {
+      navigator.clipboard?.writeText(user.friendCode || '').then(() => {
+        const b = document.getElementById('copy-profile-code');
+        b.textContent = 'Copied!';
+        setTimeout(() => (b.textContent = 'Copy'), 1500);
+      });
+    });
+
+    const wins = user.wins || 0;
+    const losses = user.losses || 0;
+    const draws = user.draws || 0;
+    const total = wins + losses + draws;
+    const winRate = total > 0 ? Math.round((wins / total) * 100) + '%' : '--%';
+
+    document.getElementById('stat-elo').textContent = user.elo || 500;
+    document.getElementById('stat-peak-elo').textContent = user.peakElo || user.elo || 500;
+    document.getElementById('stat-total-games').textContent = total;
+    document.getElementById('stat-win-rate').textContent = winRate;
+    document.getElementById('stat-wld').textContent = `${wins}W / ${losses}L / ${draws}D`;
+    document.getElementById('stat-friends').textContent = (user.friends || []).length;
 
     const gamesRes = await fetch('/api/games');
     const gamesData = await gamesRes.json();
     const games = gamesData.games || [];
-    document.getElementById('games-count-badge').textContent = `${games.length} Games`;
+    document.getElementById('games-count-badge').textContent = `${games.length} Game${games.length === 1 ? '' : 's'}`;
 
     const listEl = document.getElementById('account-games-list');
     listEl.innerHTML = '';
@@ -75,7 +103,7 @@
 
       const sub = document.createElement('div');
       sub.className = 'saved-game-sub';
-      const dt = g.playedAt ? new Date(g.playedAt).toLocaleDateString() : '';
+      const dt = g.playedAt ? new Date(g.playedAt).toLocaleString() : '';
       sub.textContent = `${g.timeLabel || 'Match'} • ${(g.history || []).length} moves • ${g.reason || ''}${dt ? ' • ' + dt : ''}`;
 
       meta.appendChild(title);
@@ -83,10 +111,10 @@
 
       const btn = document.createElement('button');
       btn.className = 'btn btn-sm btn-primary';
-      btn.textContent = 'Analyze';
+      btn.textContent = 'Analyze Game';
       btn.addEventListener('click', () => {
         sessionStorage.setItem('crownfall_analysis_history', JSON.stringify(g.history || []));
-        window.location.href = '/analysis';
+        window.location.href = `/analysis?gameId=${encodeURIComponent(g.id)}`;
       });
 
       row.appendChild(meta);

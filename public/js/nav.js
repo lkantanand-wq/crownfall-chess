@@ -10,6 +10,7 @@
       if (accountLink) {
         if (data.user) {
           accountLink.textContent = `@${data.user.username}`;
+          document.querySelectorAll('.nav-auth-only').forEach((el) => (el.style.display = 'inline-flex'));
           localStorage.setItem('crownfall_name', data.user.displayName);
         } else {
           accountLink.textContent = 'Sign In';

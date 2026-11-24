@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Account &amp; Game History — Crownfall Chess</title>
+  <title>Player Profile — Crownfall Chess</title>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -16,12 +16,14 @@
       <a href="/" class="nav-link">Home</a>
       <a href="/lobby" class="nav-link">Play Online</a>
       <a href="/friends" class="nav-link">Friends</a>
+      <a href="/history" class="nav-link nav-auth-only" style="display:none;">History</a>
+      <a href="/openings" class="nav-link">Openings</a>
       <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
       <a href="/account" id="nav-account-link" class="nav-link active">Sign In</a>
     </div>
   </nav>
 
-  <main class="container" style="max-width: 960px;">
+  <main class="container" style="max-width: 980px;">
     <!-- Auth View -->
     <div id="auth-section" class="lobby-grid" style="display:none;">
       <section class="card">
@@ -69,7 +71,7 @@
         <div>
           <h2 style="font-size:1.25rem; margin-bottom:10px;">Continue with Google</h2>
           <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:18px;">
-            Sign in with your Google account to save your match history across devices and challenge friends directly.
+            Sign in with your Google account to save your Elo rating, profile stats, and match history across devices.
           </p>
           <a id="google-btn" href="/auth/google" class="btn" style="width:100%; background:#fff; color:#111; border-color:#ddd;">
             <span style="font-weight:800; color:#4285F4;">G</span> Sign in with Google
@@ -82,24 +84,63 @@
       </section>
     </div>
 
-    <!-- Profile & Account History View -->
-    <div id="profile-section" style="display:none; gap:22px;">
-      <section class="card" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px;">
-        <div>
-          <div style="font-size:0.78rem; color:var(--gold); font-weight:700; text-transform:uppercase;">Signed In</div>
-          <h1 id="profile-name" style="font-size:1.7rem;">Player</h1>
-          <div id="profile-meta" style="color:var(--text-secondary); font-size:0.9rem;"></div>
+    <!-- Chess.com-Style Player Profile Dashboard -->
+    <div id="profile-section" style="display:none; gap:20px;">
+      <section class="card" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:18px;">
+        <div style="display:flex; align-items:center; gap:16px;">
+          <div id="profile-avatar" class="avatar white" style="width:64px; height:64px; font-size:1.5rem; border-radius:16px;">P</div>
+          <div>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <h1 id="profile-name" style="font-size:1.65rem; line-height:1.15;">Player</h1>
+              <span id="profile-provider-badge" style="font-size:0.72rem; font-weight:700; padding:3px 8px; border-radius:999px; background:var(--gold-dim); color:var(--gold);">Account</span>
+            </div>
+            <div id="profile-meta" style="color:var(--text-secondary); font-size:0.88rem; margin-top:4px;"></div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+              <span style="font-size:0.78rem; color:var(--text-muted);">Friend Code:</span>
+              <code id="profile-friend-code" style="color:var(--gold); font-weight:700; letter-spacing:0.08em;">------</code>
+              <button id="copy-profile-code" class="btn btn-sm" style="padding:2px 8px; font-size:0.72rem; min-height:24px;">Copy</button>
+            </div>
+          </div>
         </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <a href="/friends" class="btn btn-emerald">Manage Friends</a>
-          <a href="/lobby" class="btn btn-primary">New Match</a>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <a href="/friends" class="btn btn-emerald">Friends</a>
+          <a href="/lobby" class="btn btn-primary">Play Match</a>
           <button id="logout-btn" class="btn btn-danger">Sign Out</button>
         </div>
       </section>
 
+      <!-- Elo & W/L/D Stats Grid -->
+      <section class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-label">Current Elo</div>
+          <div id="stat-elo" class="stat-val" style="color:var(--gold); font-size:1.45rem;">500</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Peak Elo</div>
+          <div id="stat-peak-elo" class="stat-val" style="font-size:1.45rem;">500</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Games Played</div>
+          <div id="stat-total-games" class="stat-val" style="font-size:1.45rem;">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Win Rate</div>
+          <div id="stat-win-rate" class="stat-val" style="color:var(--emerald); font-size:1.45rem;">--%</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">W / L / D Record</div>
+          <div id="stat-wld" class="stat-val" style="font-size:1.05rem;">0W / 0L / 0D</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Friends</div>
+          <div id="stat-friends" class="stat-val" style="font-size:1.45rem;">0</div>
+        </div>
+      </section>
+
+      <!-- Full Game History -->
       <section class="card">
-        <div class="panel-header" style="margin-bottom:16px;">
-          <span>Saved Account Game History</span>
+        <div class="panel-header" style="margin-bottom:14px;">
+          <span>All Games History</span>
           <span id="games-count-badge" style="color:var(--gold);">0 Games</span>
         </div>
         <div id="account-games-list" class="saved-games-list"></div>

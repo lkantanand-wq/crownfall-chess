@@ -11,7 +11,8 @@ if (!fs.existsSync(DATA_DIR)) {
 
 let state = {
   users: [],
-  sessions: {}
+  sessions: {},
+  analyses: {}
 };
 
 function load() {
@@ -21,8 +22,15 @@ function load() {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.users)) {
         state = {
-          users: parsed.users,
-          sessions: parsed.sessions || {}
+          users: parsed.users.map((u) => ({
+            elo: 500,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            ...u
+          })),
+          sessions: parsed.sessions || {},
+          analyses: parsed.analyses || {}
         };
       }
     }
@@ -69,6 +77,11 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(hashBuf, origBuf);
 }
 
+function computeEloDelta(ratingA, ratingB, scoreA, kFactor = 32) {
+  const expectedA = 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
+  return Math.round(kFactor * (scoreA - expectedA));
+}
+
 function sanitizeUser(u) {
   if (!u) return null;
   return {
@@ -77,6 +90,12 @@ function sanitizeUser(u) {
     displayName: u.displayName,
     email: u.email,
     friendCode: u.friendCode,
+    elo: typeof u.elo === 'number' ? u.elo : 500,
+    peakElo: typeof u.peakElo === 'number' ? u.peakElo : (typeof u.elo === 'number' ? u.elo : 500),
+    createdAt: u.createdAt || Date.now(),
+    wins: u.wins || 0,
+    losses: u.losses || 0,
+    draws: u.draws || 0,
     authProvider: u.googleId ? 'google' : 'local',
     friends: u.friends || [],
     incomingRequests: u.incomingRequests || [],
@@ -127,6 +146,10 @@ function createLocalUser({ username, email, password, displayName }) {
     googleId: null,
     passwordHash: hashPassword(password),
     friendCode: generateFriendCode(),
+    elo: 500,
+    wins: 0,
+    losses: 0,
+    draws: 0,
     friends: [],
     incomingRequests: [],
     outgoingRequests: [],
@@ -163,6 +186,10 @@ function upsertGoogleUser({ googleId, email, name }) {
       googleId,
       passwordHash: null,
       friendCode: generateFriendCode(),
+      elo: 500,
+      wins: 0,
+      losses: 0,
+      draws: 0,
       friends: [],
       incomingRequests: [],
       outgoingRequests: [],
@@ -210,12 +237,8 @@ function sendFriendRequest(fromUserId, targetQuery) {
   if (!fromUser || !toUser) throw new Error('User or friend code not found.');
   if (fromUser.id === toUser.id) throw new Error('You cannot add yourself.');
   if (fromUser.friends.includes(toUser.id)) throw new Error('Already friends.');
-  if (!toUser.incomingRequests.includes(fromUser.id)) {
-    toUser.incomingRequests.push(fromUser.id);
-  }
-  if (!fromUser.outgoingRequests.includes(toUser.id)) {
-    fromUser.outgoingRequests.push(toUser.id);
-  }
+  if (!toUser.incomingRequests.includes(fromUser.id)) toUser.incomingRequests.push(fromUser.id);
+  if (!fromUser.outgoingRequests.includes(toUser.id)) fromUser.outgoingRequests.push(toUser.id);
   save();
   return toUser;
 }
@@ -224,10 +247,8 @@ function respondFriendRequest(userId, requesterId, accept) {
   const user = findUserById(userId);
   const reqUser = findUserById(requesterId);
   if (!user || !reqUser) throw new Error('User not found.');
-
   user.incomingRequests = user.incomingRequests.filter((id) => id !== requesterId);
   reqUser.outgoingRequests = reqUser.outgoingRequests.filter((id) => id !== userId);
-
   if (accept) {
     if (!user.friends.includes(requesterId)) user.friends.push(requesterId);
     if (!reqUser.friends.includes(userId)) reqUser.friends.push(userId);
@@ -241,6 +262,20 @@ function removeFriend(userId, friendId) {
   if (user) user.friends = user.friends.filter((id) => id !== friendId);
   if (friend) friend.friends = friend.friends.filter((id) => id !== userId);
   save();
+}
+
+function updateUserElo(userId, delta, outcome) {
+  const user = findUserById(userId);
+  if (!user) return null;
+  const oldElo = typeof user.elo === 'number' ? user.elo : 500;
+  const newElo = Math.max(100, oldElo + delta);
+  user.elo = newElo;
+  user.peakElo = Math.max(user.peakElo || oldElo, newElo);
+  if (outcome === 'win') user.wins = (user.wins || 0) + 1;
+  else if (outcome === 'loss') user.losses = (user.losses || 0) + 1;
+  else user.draws = (user.draws || 0) + 1;
+  save();
+  return { oldElo, newElo, delta: newElo - oldElo };
 }
 
 function saveGameToUser(userId, gameRecord) {
@@ -258,7 +293,38 @@ function getUserGames(userId) {
   return user && Array.isArray(user.games) ? user.games : [];
 }
 
+function getUserGameById(userId, gameId) {
+  return getUserGames(userId).find((g) => g.id === gameId) || null;
+}
+
+function saveGameAnalysis(userId, gameId, analysisData) {
+  const key = `${userId}:${gameId}`;
+  state.analyses[key] = {
+    ...analysisData,
+    gameId,
+    userId,
+    updatedAt: Date.now()
+  };
+  save();
+  return state.analyses[key];
+}
+
+function getGameAnalysis(userId, gameId) {
+  return state.analyses[`${userId}:${gameId}`] || null;
+}
+
+function deleteGameAnalysis(userId, gameId) {
+  const key = `${userId}:${gameId}`;
+  if (state.analyses[key]) {
+    delete state.analyses[key];
+    save();
+    return true;
+  }
+  return false;
+}
+
 module.exports = {
+  computeEloDelta,
   sanitizeUser,
   findUserById,
   findUserByLogin,
@@ -271,6 +337,11 @@ module.exports = {
   sendFriendRequest,
   respondFriendRequest,
   removeFriend,
+  updateUserElo,
   saveGameToUser,
-  getUserGames
+  getUserGames,
+  getUserGameById,
+  saveGameAnalysis,
+  getGameAnalysis,
+  deleteGameAnalysis
 };

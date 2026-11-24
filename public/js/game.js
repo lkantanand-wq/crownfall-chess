@@ -37,6 +37,20 @@
   const statusBanner = document.getElementById('status-banner');
   const drawBanner = document.getElementById('draw-banner');
   const gameoverModal = document.getElementById('gameover-modal');
+  let celebratedGameOver = false;
+  function triggerVictoryConfetti() {
+    const colors = ['#e2b754', '#38b87c', '#f4f1ea', '#5c9ce6', '#e25c5c'];
+    for (let i = 0; i < 42; i++) {
+      const c = document.createElement('div');
+      c.className = 'confetti-piece';
+      c.style.left = Math.random() * 100 + 'vw';
+      c.style.background = colors[i % colors.length];
+      c.style.animationDelay = (Math.random() * 0.45) + 's';
+      c.style.transform = `rotate(${Math.random() * 360}deg)`;
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 2600);
+    }
+  }
   const themeSelect = document.getElementById('theme-select');
   const savedTheme = CrownfallStorage.getBoardTheme();
   themeSelect.value = savedTheme;
@@ -146,6 +160,7 @@
 
         const sqEl = document.createElement('div');
         sqEl.className = `square ${isLight ? 'light' : 'dark'}`;
+        sqEl.dataset.sq = sqAlg;
         if (lastMove && (lastMove.from === sqAlg || lastMove.to === sqAlg)) {
           sqEl.classList.add('last-move');
         }
@@ -173,6 +188,23 @@
         if (piece) {
           sqEl.insertAdjacentHTML('beforeend', CrownfallPieces.getSvg(piece));
         }
+        if (snapshot.over && snapshot.result && !isInspecting && (piece === 'K' || piece === 'k')) {
+          const pColor = piece === 'K' ? 'w' : 'b';
+          const bdg = document.createElement('div');
+          if (snapshot.result.winner === 'draw') {
+            bdg.className = 'king-result-badge draw';
+            bdg.textContent = '½';
+          } else if (snapshot.result.winner === pColor) {
+            sqEl.classList.add('king-win-sq');
+            bdg.className = 'king-result-badge win';
+            bdg.textContent = '👑';
+          } else {
+            sqEl.classList.add('king-loss-sq');
+            bdg.className = 'king-result-badge loss';
+            bdg.textContent = '#';
+          }
+          sqEl.appendChild(bdg);
+        }
 
         const isLegalTarget = legalTargets.some((m) => CrownfallEngine.idxToAlgebraic(m.to) === sqAlg);
         if (isLegalTarget) {
@@ -181,6 +213,7 @@
           sqEl.appendChild(indicator);
         }
 
+        if (piece) attachPieceDrag(sqEl, sqAlg, piece);
         sqEl.addEventListener('click', () => onSquareClick(sqAlg, game));
         boardEl.appendChild(sqEl);
       }
@@ -191,6 +224,67 @@
     updatePlayerBars(game);
   }
 
+  let dragState = null;
+  function attachPieceDrag(sqEl, sqAlg, pieceChar) {
+    sqEl.addEventListener('pointerdown', (e) => {
+      if (e.button && e.button !== 0) return;
+      if (!snapshot || !snapshot.started || snapshot.over) return;
+      if (inspectPly !== null || myColor !== snapshot.turn) return;
+      if (!pieceChar || CrownfallEngine.pieceColor(pieceChar) !== myColor) return;
+
+      selectedSq = sqAlg;
+      const gNow = new CrownfallEngine.ChessGame(snapshot.fen);
+      legalTargets = gNow.legalMoves(sqAlg);
+      const rect = sqEl.getBoundingClientRect();
+      dragState = { from: sqAlg, startX: e.clientX, startY: e.clientY, active: false, ghost: null, size: rect.width, pieceChar };
+      renderBoard();
+    });
+  }
+
+  window.addEventListener('pointermove', (e) => {
+    if (!dragState) return;
+    if (!dragState.active && Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY) > 6) {
+      dragState.active = true;
+      const ghost = document.createElement('div');
+      ghost.style.cssText = `position:fixed; pointer-events:none; z-index:999; width:${dragState.size}px; height:${dragState.size}px; display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%) scale(1.12);`;
+      ghost.innerHTML = CrownfallPieces.getSvg(dragState.pieceChar);
+      document.body.appendChild(ghost);
+      dragState.ghost = ghost;
+    }
+    if (dragState.active && dragState.ghost) {
+      dragState.ghost.style.left = e.clientX + 'px';
+      dragState.ghost.style.top = e.clientY + 'px';
+    }
+  });
+
+  window.addEventListener('pointerup', (e) => {
+    if (!dragState) return;
+    const ds = dragState;
+    dragState = null;
+    if (ds.ghost) ds.ghost.remove();
+    if (!ds.active) return;
+
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const sqEl = el ? el.closest('.square[data-sq]') : null;
+    if (sqEl) {
+      const targetSq = sqEl.dataset.sq;
+      if (targetSq && targetSq !== ds.from) {
+        const matchingMoves = legalTargets.filter((m) => CrownfallEngine.idxToAlgebraic(m.to) === targetSq);
+        if (matchingMoves.length > 0) {
+          if (matchingMoves[0].promotion) {
+            openPromotionModal(ds.from, targetSq);
+          } else {
+            socket.emit('game:move', { from: ds.from, to: targetSq });
+          }
+          selectedSq = null;
+          legalTargets = [];
+          renderBoard();
+          return;
+        }
+      }
+    }
+    renderBoard();
+  });
   function onSquareClick(sqAlg, game) {
     if (!snapshot || !snapshot.started || snapshot.over) return;
     if (inspectPly !== null) return;
@@ -259,7 +353,7 @@
       avatar.textContent = pInfo ? pInfo.name.slice(0, 2).toUpperCase() : (color === 'w' ? 'W' : 'B');
 
       document.getElementById(`${prefix}-name`).textContent = pInfo
-        ? `${pInfo.name}${color === myColor ? ' (You)' : ''}`
+        ? `${pInfo.name} (${pInfo.elo || 500})${color === myColor ? ' • You' : ''}`
         : 'Waiting for player...';
 
       const dot = document.getElementById(`${prefix}-dot`);
@@ -388,7 +482,15 @@
         fifty_move_rule: 'by 50-Move Rule',
         agreement: 'by Mutual Agreement'
       };
-      subEl.textContent = reasonLabels[r.reason] || 'Match complete';
+      let eloText = '';
+      if (r.eloChanges && (myColor === 'w' || myColor === 'b')) {
+        const ch = r.eloChanges[myColor];
+        if (ch) {
+          const sign = ch.delta >= 0 ? '+' : '';
+          eloText = ` • Elo: ${ch.oldElo} → ${ch.newElo} (${sign}${ch.delta})`;
+        }
+      }
+      subEl.textContent = (reasonLabels[r.reason] || 'Match complete') + eloText;
       document.getElementById('rematch-btn').textContent = `Rematch (${snapshot.rematchCount || 0}/2)`;
       if (snapshot.history && snapshot.history.length > 0) {
         const resLabel = r.winner === 'draw' ? '½-½' : (r.winner === 'w' ? '1-0' : '0-1');
@@ -402,8 +504,17 @@
           history: snapshot.history
         });
       }
+      const bf = document.querySelector('.board-frame');
+      if (bf) bf.classList.add('victory-pulse');
+      if (!celebratedGameOver) {
+        celebratedGameOver = true;
+        if (r.winner !== 'draw') triggerVictoryConfetti();
+      }
       gameoverModal.classList.add('open');
     } else {
+      celebratedGameOver = false;
+      const bf = document.querySelector('.board-frame');
+      if (bf) bf.classList.remove('victory-pulse');
       gameoverModal.classList.remove('open');
     }
   }

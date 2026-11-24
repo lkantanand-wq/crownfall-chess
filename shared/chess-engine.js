@@ -724,6 +724,39 @@
         });
       };
 
+      const quiesce = (alpha, beta, maximizing, qDepth) => {
+        const standPat = this.evaluateStatic();
+        if (qDepth <= 0) return standPat;
+        if (maximizing) {
+          if (standPat >= beta) return beta;
+          if (alpha < standPat) alpha = standPat;
+        } else {
+          if (standPat <= alpha) return alpha;
+          if (beta > standPat) beta = standPat;
+        }
+        const caps = this.legalMoves().filter((m) => m.captured || m.promotion);
+        orderMoves(caps);
+        if (maximizing) {
+          for (const m of caps) {
+            const saved = this._applyMoveRaw(m);
+            const score = quiesce(alpha, beta, false, qDepth - 1);
+            this._undoMoveRaw(m, saved);
+            if (score >= beta) return beta;
+            if (score > alpha) alpha = score;
+          }
+          return alpha;
+        } else {
+          for (const m of caps) {
+            const saved = this._applyMoveRaw(m);
+            const score = quiesce(alpha, beta, true, qDepth - 1);
+            this._undoMoveRaw(m, saved);
+            if (score <= alpha) return alpha;
+            if (score < beta) beta = score;
+          }
+          return beta;
+        }
+      };
+
       const alphaBeta = (d, alpha, beta, maximizing) => {
         const moves = this.legalMoves();
         if (moves.length === 0) {
@@ -733,7 +766,7 @@
           return 0;
         }
         if (d === 0) {
-          return this.evaluateStatic();
+          return quiesce(alpha, beta, maximizing, 4);
         }
 
         orderMoves(moves);
@@ -804,6 +837,301 @@
         }
       };
     }
+    makeSanMove(sanInput) {
+      const clean = String(sanInput || '').trim().replace(/[+#!?]+$/g, '');
+      if (!clean) return null;
+      const all = this.legalMoves();
+      for (const m of all) {
+        const s = this._toSAN(m, all).replace(/[+#!?]+$/g, '');
+        if (s === clean) {
+          return this.makeMove({
+            from: idxToAlgebraic(m.from),
+            to: idxToAlgebraic(m.to),
+            promotion: m.promotion || null
+          });
+        }
+      }
+      return null;
+    }
+
+    searchMultiPV(depth = 3, numLines = 3) {
+      const turn = this.turn;
+      const legal = this.legalMoves();
+      if (legal.length === 0) return [];
+
+      const orderMoves = (moves) => moves.sort((a, b) => {
+        const sa = (a.captured ? PIECE_VALUES[pieceType(a.captured)] * 10 - PIECE_VALUES[pieceType(a.piece)] : 0) + (a.promotion ? 800 : 0);
+        const sb = (b.captured ? PIECE_VALUES[pieceType(b.captured)] * 10 - PIECE_VALUES[pieceType(b.piece)] : 0) + (b.promotion ? 800 : 0);
+        return sb - sa;
+      });
+
+      const alphaBeta = (d, alpha, beta, maximizing) => {
+        const moves = this.legalMoves();
+        if (moves.length === 0) {
+          if (this.inCheck(this.turn)) return maximizing ? -90000 - d : 90000 + d;
+          return 0;
+        }
+        if (d === 0) return this.evaluateStatic();
+        orderMoves(moves);
+        if (maximizing) {
+          let maxEval = -Infinity;
+          for (const m of moves) {
+            const saved = this._applyMoveRaw(m);
+            const ev = alphaBeta(d - 1, alpha, beta, false);
+            this._undoMoveRaw(m, saved);
+            if (ev > maxEval) maxEval = ev;
+            if (ev > alpha) alpha = ev;
+            if (beta <= alpha) break;
+          }
+          return maxEval;
+        } else {
+          let minEval = Infinity;
+          for (const m of moves) {
+            const saved = this._applyMoveRaw(m);
+            const ev = alphaBeta(d - 1, alpha, beta, true);
+            this._undoMoveRaw(m, saved);
+            if (ev < minEval) minEval = ev;
+            if (ev < beta) beta = ev;
+            if (beta <= alpha) break;
+          }
+          return minEval;
+        }
+      };
+
+      orderMoves(legal);
+      const maximizing = turn === 'w';
+      const scored = [];
+
+      for (const m of legal) {
+        const san = this._toSAN(m, legal);
+        const saved = this._applyMoveRaw(m);
+        const ev = alphaBeta(Math.max(0, depth - 1), -Infinity, Infinity, !maximizing);
+        const inCheckNow = this.inCheck(this.turn);
+        const nextLen = this.legalMoves().length;
+        this._undoMoveRaw(m, saved);
+
+        const fullSan = san + (inCheckNow ? (nextLen === 0 ? '#' : '+') : '');
+        let mateIn = null;
+        if (Math.abs(ev) >= 85000) {
+          const plies = Math.max(1, depth - (Math.abs(ev) - 90000));
+          mateIn = Math.ceil(plies / 2) * (ev > 0 ? 1 : -1);
+        }
+        scored.push({
+          move: m,
+          scoreCp: ev,
+          mateIn,
+          san: fullSan,
+          bestMove: {
+            from: idxToAlgebraic(m.from),
+            to: idxToAlgebraic(m.to),
+            promotion: m.promotion || null
+          }
+        });
+      }
+
+      scored.sort((a, b) => maximizing ? b.scoreCp - a.scoreCp : a.scoreCp - b.scoreCp);
+      const top = scored.slice(0, Math.min(numLines, scored.length));
+
+      // Build short PV (up to 4 plies) for each top line
+      for (const line of top) {
+        const gPv = this.clone();
+        const pvSan = [line.san];
+        gPv.makeMove(line.bestMove);
+        for (let p = 0; p < 3; p++) {
+          if (gPv.getStatus().over) break;
+          const next = gPv.searchBestMove(Math.max(1, depth - 1));
+          if (!next.bestMove) break;
+          const mv = gPv.makeMove(next.bestMove);
+          if (!mv) break;
+          pvSan.push(mv.san);
+        }
+        line.pvSan = pvSan;
+      }
+
+      return top;
+    }
+  }
+
+  const ECO_OPENINGS = [
+    { eco: 'C50', name: 'Italian Game', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4'] },
+    { eco: 'C53', name: 'Italian Game: Giuoco Piano', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5'] },
+    { eco: 'C55', name: 'Italian Game: Two Knights Defense', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nf6'] },
+    { eco: 'C60', name: 'Ruy Lopez', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'] },
+    { eco: 'C65', name: 'Ruy Lopez: Berlin Defense', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'Nf6'] },
+    { eco: 'C70', name: 'Ruy Lopez: Morphy Defense', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6'] },
+    { eco: 'C44', name: 'Scotch Game', moves: ['e4', 'e5', 'Nf3', 'Nc6', 'd4'] },
+    { eco: 'C42', name: "Petrov's Defense", moves: ['e4', 'e5', 'Nf3', 'Nf6'] },
+    { eco: 'C41', name: 'Philidor Defense', moves: ['e4', 'e5', 'Nf3', 'd6'] },
+    { eco: 'C20', name: "King's Pawn Opening", moves: ['e4', 'e5'] },
+    { eco: 'C30', name: "King's Gambit", moves: ['e4', 'e5', 'f4'] },
+    { eco: 'B20', name: 'Sicilian Defense', moves: ['e4', 'c5'] },
+    { eco: 'B21', name: 'Sicilian Defense: Smith-Morra / Grand Prix', moves: ['e4', 'c5', 'd4'] },
+    { eco: 'B22', name: 'Sicilian Defense: Alapin Variation', moves: ['e4', 'c5', 'c3'] },
+    { eco: 'B50', name: 'Sicilian Defense: Open', moves: ['e4', 'c5', 'Nf3', 'd6'] },
+    { eco: 'B90', name: 'Sicilian Defense: Najdorf', moves: ['e4', 'c5', 'Nf3', 'd6', 'd4', 'cxd4', 'Nxd4', 'Nf6', 'Nc3', 'a6'] },
+    { eco: 'B10', name: 'Caro-Kann Defense', moves: ['e4', 'c6'] },
+    { eco: 'B12', name: 'Caro-Kann Defense: Advance', moves: ['e4', 'c6', 'd4', 'd5', 'e5'] },
+    { eco: 'C00', name: 'French Defense', moves: ['e4', 'e6'] },
+    { eco: 'C02', name: 'French Defense: Advance', moves: ['e4', 'e6', 'd4', 'd5', 'e5'] },
+    { eco: 'B01', name: 'Scandinavian Defense', moves: ['e4', 'd5'] },
+    { eco: 'B07', name: 'Pirc Defense', moves: ['e4', 'd6', 'd4', 'Nf6'] },
+    { eco: 'D06', name: "Queen's Gambit", moves: ['d4', 'd5', 'c4'] },
+    { eco: 'D30', name: "Queen's Gambit Declined", moves: ['d4', 'd5', 'c4', 'e6'] },
+    { eco: 'D10', name: "Queen's Gambit: Slav Defense", moves: ['d4', 'd5', 'c4', 'c6'] },
+    { eco: 'D20', name: "Queen's Gambit Accepted", moves: ['d4', 'd5', 'c4', 'dxc4'] },
+    { eco: 'D02', name: 'London System', moves: ['d4', 'd5', 'Nf3', 'Nf6', 'Bf4'] },
+    { eco: 'E60', name: "King's Indian Defense", moves: ['d4', 'Nf6', 'c4', 'g6'] },
+    { eco: 'E20', name: 'Nimzo-Indian Defense', moves: ['d4', 'Nf6', 'c4', 'e6', 'Nc3', 'Bb4'] },
+    { eco: 'A45', name: 'Indian Game', moves: ['d4', 'Nf6'] },
+    { eco: 'A10', name: 'English Opening', moves: ['c4'] },
+    { eco: 'A06', name: 'Réti Opening', moves: ['Nf3', 'd5'] },
+    { eco: 'A04', name: 'Zukertort Opening', moves: ['Nf3'] },
+    { eco: 'A00', name: 'Uncommon Opening', moves: [] }
+  ];
+
+  function detectOpening(history) {
+    const sans = (history || []).map((m) => String(m.san || '').replace(/[+#!?]+$/g, ''));
+    let best = ECO_OPENINGS[ECO_OPENINGS.length - 1];
+    for (const op of ECO_OPENINGS) {
+      if (op.moves.length === 0) continue;
+      if (op.moves.length <= sans.length) {
+        let match = true;
+        for (let i = 0; i < op.moves.length; i++) {
+          if (sans[i] !== op.moves[i]) { match = false; break; }
+        }
+        if (match && op.moves.length >= best.moves.length) best = op;
+      }
+    }
+    const theoryPlies = best.moves.length;
+    const firstDevIdx = sans.length > theoryPlies ? theoryPlies : null;
+    return {
+      eco: best.eco,
+      name: best.name,
+      theoryPlies,
+      firstDeviationPly: firstDevIdx !== null ? firstDevIdx + 1 : null,
+      firstDeviationSan: firstDevIdx !== null ? history[firstDevIdx].san : null
+    };
+  }
+
+  function detectPhase(board, plyIndex) {
+    let nonKingPts = 0;
+    let queens = 0;
+    for (let i = 0; i < 64; i++) {
+      const p = board[i];
+      if (!p) continue;
+      const t = pieceType(p);
+      if (t === 'q') queens++;
+      if (t !== 'k' && t !== 'p') nonKingPts += PIECE_VALUES[t] || 0;
+    }
+    if (plyIndex < 16 && nonKingPts >= 4200) return 'opening';
+    if (nonKingPts <= 2600 || (queens === 0 && nonKingPts <= 3200)) return 'endgame';
+    return 'middlegame';
+  }
+
+  function detectTacticalMotifs(fenBefore, moveRecord) {
+    const motifs = [];
+    const gAfter = new ChessGame(moveRecord.fenAfter);
+    const mover = moveRecord.color || pieceColor(moveRecord.piece);
+    const opp = oppositeColor(mover);
+
+    if (gAfter.isCheckmate()) motifs.push('Checkmate');
+    else if (gAfter.inCheck(opp)) motifs.push('Check');
+
+    if (moveRecord.castling) motifs.push('King Safety (Castling)');
+    if (moveRecord.promotion) motifs.push('Pawn Promotion');
+    if (moveRecord.captured) {
+      const gained = PIECE_VALUES[pieceType(moveRecord.captured)] || 100;
+      const risked = PIECE_VALUES[pieceType(moveRecord.piece)] || 100;
+      if (gained > risked) motifs.push('Winning Exchange / Material Gain');
+      else motifs.push('Capture');
+    }
+
+    // Check if the moved piece now attacks 2+ valuable or undefended opponent pieces (Fork)
+    const toIdx = algebraicToIdx(moveRecord.to);
+    if (toIdx !== -1 && pieceType(moveRecord.piece) !== 'k') {
+      const gTurn = gAfter.clone();
+      gTurn.turn = mover;
+      const attacks = gTurn.legalMoves(moveRecord.to).filter((m) => m.captured && pieceType(m.captured) !== 'p');
+      if (attacks.length >= 2) motifs.push('Double Attack / Fork');
+    }
+
+    if (motifs.length === 0) motifs.push('Positional / Piece Activity');
+    return motifs;
+  }
+
+  function parsePGN(pgnText) {
+    const text = String(pgnText || '').trim();
+    const headers = {};
+    const headerRegex = /\[([A-Za-z0-9_]+)\s+"([^"]*)"\]/g;
+    let m;
+    while ((m = headerRegex.exec(text)) !== null) {
+      headers[m[1]] = m[2];
+    }
+
+    // Extract clock comments before stripping comments
+    const clocks = [];
+    const body = text.replace(/\[[^\]]*\]\s*/g, ' ').trim();
+    const tokenRegex = /\{[^}]*\}|\([^)]*\)|\d+\.+(?:\s*)|\S+/g;
+    const game = new ChessGame(headers.FEN || INITIAL_FEN);
+    const tokens = body.match(tokenRegex) || [];
+    let pendingClk = null;
+
+    for (let tok of tokens) {
+      tok = tok.trim();
+      if (tok.startsWith('{')) {
+        const clkMatch = tok.match(/\[%clk\s+(\d+):(\d+):(\d+(?:\.\d+)?)\]/);
+        if (clkMatch) {
+          const sec = parseInt(clkMatch[1], 10) * 3600 + parseInt(clkMatch[2], 10) * 60 + parseFloat(clkMatch[3]);
+          pendingClk = Math.round(sec * 1000);
+          if (game.history.length > 0) {
+            game.history[game.history.length - 1].clockAfterMs = pendingClk;
+          }
+        }
+        continue;
+      }
+      if (tok.startsWith('(') || /^\d+\.+$/.test(tok)) continue;
+      if (['1-0', '0-1', '1/2-1/2', '*'].includes(tok)) break;
+
+      const mv = game.makeSanMove(tok);
+      if (!mv) {
+        throw new Error(`Illegal or unrecognized move in PGN: ${tok}`);
+      }
+    }
+
+    return { headers, history: game.history, finalFen: game.fen() };
+  }
+
+  function exportAnnotatedPGN(meta, history, reviews = [], comments = {}) {
+    const lines = [
+      `[Event "${meta.event || 'Crownfall Chess Game'}"]`,
+      `[White "${meta.whiteName || 'White'}"]`,
+      `[Black "${meta.blackName || 'Black'}"]`,
+      `[Result "${meta.resultLabel || '*'}"]`,
+      `[ECO "${meta.eco || 'A00'}"]`,
+      `[Opening "${meta.opening || 'Unknown'}"]`,
+      ''
+    ];
+
+    const moveTokens = [];
+    for (let i = 0; i < history.length; i++) {
+      if (i % 2 === 0) moveTokens.push(`${Math.floor(i / 2) + 1}.`);
+      let tok = history[i].san;
+      const rev = reviews[i];
+      if (rev && ['!!', '!', '?!', '?', '??'].includes(rev.symbol)) {
+        tok += rev.symbol;
+      }
+      const noteParts = [];
+      if (rev) {
+        const evStr = rev.mateAfter ? `M${rev.mateAfter}` : (rev.evalAfterCp / 100).toFixed(2);
+        noteParts.push(`${rev.label} (eval ${evStr}${rev.bestSan && rev.bestSan !== rev.san ? `, best ${rev.bestSan}` : ''})`);
+      }
+      if (comments[i]) noteParts.push(comments[i]);
+      moveTokens.push(tok);
+      if (noteParts.length) moveTokens.push(`{ ${noteParts.join(' — ')} }`);
+    }
+    moveTokens.push(meta.resultLabel || '*');
+    lines.push(moveTokens.join(' '));
+    return lines.join('\n');
   }
 
   return {
@@ -815,6 +1143,12 @@
     idxToAlgebraic,
     algebraicToIdx,
     pieceColor,
-    pieceType
+    pieceType,
+    ECO_OPENINGS,
+    detectOpening,
+    detectPhase,
+    detectTacticalMotifs,
+    parsePGN,
+    exportAnnotatedPGN
   };
 });

@@ -58,6 +58,8 @@ app.get('/analysis', (req, res) => res.sendFile(path.join(__dirname, 'public', '
 app.get('/rules', (req, res) => res.sendFile(path.join(__dirname, 'public', 'rules.html')));
 app.get('/account', (req, res) => res.sendFile(path.join(__dirname, 'public', 'account.html')));
 app.get('/friends', (req, res) => res.sendFile(path.join(__dirname, 'public', 'friends.html')));
+app.get('/history', (req, res) => res.sendFile(path.join(__dirname, 'public', 'history.html')));
+app.get('/openings', (req, res) => res.sendFile(path.join(__dirname, 'public', 'openings.html')));
 
 // Auth APIs
 app.get('/api/auth/config', (req, res) => {
@@ -158,10 +160,51 @@ app.get('/auth/google/callback', async (req, res) => {
 });
 
 // Account Games History API
+app.post('/api/bots/result', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return res.json({ guest: true });
+  const { botElo = 500, outcome = 'draw' } = req.body || {};
+  const score = outcome === 'win' ? 1 : (outcome === 'loss' ? 0 : 0.5);
+  const delta = db.computeEloDelta(user.elo || 500, Number(botElo) || 500, score);
+  const updated = db.updateUserElo(user.id, delta, outcome);
+  res.json(updated);
+});
+
 app.get('/api/games', (req, res) => {
   const user = getAuthUser(req);
   if (!user) return res.status(401).json({ error: 'Not signed in' });
   res.json({ games: db.getUserGames(user.id) });
+});
+
+app.get('/api/games/:gameId', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Not signed in' });
+  const game = db.getUserGameById(user.id, req.params.gameId);
+  if (!game) return res.status(404).json({ error: 'Game not found' });
+  const cachedAnalysis = db.getGameAnalysis(user.id, req.params.gameId);
+  res.json({ game, analysis: cachedAnalysis });
+});
+
+app.get('/api/analysis/:gameId', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Not signed in' });
+  res.json({ analysis: db.getGameAnalysis(user.id, req.params.gameId) });
+});
+
+app.post('/api/analysis/:gameId', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Not signed in' });
+  const game = db.getUserGameById(user.id, req.params.gameId);
+  if (!game) return res.status(404).json({ error: 'Game not found' });
+  const saved = db.saveGameAnalysis(user.id, req.params.gameId, req.body || {});
+  res.json({ analysis: saved });
+});
+
+app.delete('/api/analysis/:gameId', (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Not signed in' });
+  const deleted = db.deleteGameAnalysis(user.id, req.params.gameId);
+  res.json({ deleted });
 });
 
 // Track online users by userId -> Set<socketId>
@@ -296,11 +339,35 @@ function persistRoomToAccounts(room) {
   room.savedToAccounts = true;
 
   const r = room.result;
+  const wElo = room.players.w?.elo || 500;
+  const bElo = room.players.b?.elo || 500;
+  const wScore = r.winner === 'draw' ? 0.5 : (r.winner === 'w' ? 1 : 0);
+  const bScore = 1 - wScore;
+
+  const wDelta = db.computeEloDelta(wElo, bElo, wScore);
+  const bDelta = db.computeEloDelta(bElo, wElo, bScore);
+
+  const wOutcome = wScore === 1 ? 'win' : (wScore === 0 ? 'loss' : 'draw');
+  const bOutcome = bScore === 1 ? 'win' : (bScore === 0 ? 'loss' : 'draw');
+
+  let wChange = { oldElo: wElo, newElo: Math.max(100, wElo + wDelta), delta: wDelta };
+  let bChange = { oldElo: bElo, newElo: Math.max(100, bElo + bDelta), delta: bDelta };
+
+  if (room.players.w && room.players.w.userId) {
+    wChange = db.updateUserElo(room.players.w.userId, wDelta, wOutcome) || wChange;
+    room.players.w.elo = wChange.newElo;
+  }
+  if (room.players.b && room.players.b.userId && room.players.b.userId !== room.players.w?.userId) {
+    bChange = db.updateUserElo(room.players.b.userId, bDelta, bOutcome) || bChange;
+    room.players.b.elo = bChange.newElo;
+  }
+  room.result.eloChanges = { w: wChange, b: bChange };
+
   const resultLabel = r.winner === 'draw' ? '½-½' : (r.winner === 'w' ? '1-0' : '0-1');
   const record = {
     id: `${room.id}_${Date.now()}`,
-    whiteName: room.players.w ? room.players.w.name : 'White',
-    blackName: room.players.b ? room.players.b.name : 'Black',
+    whiteName: room.players.w ? `${room.players.w.name} (${wElo})` : 'White',
+    blackName: room.players.b ? `${room.players.b.name} (${bElo})` : 'Black',
     timeLabel: room.timeLabel,
     resultLabel,
     reason: r.reason,
@@ -394,8 +461,8 @@ function buildRoomSnapshot(room) {
     drawOfferBy: room.drawOfferBy,
     rematchCount: room.rematchVotes.size,
     players: {
-      w: room.players.w ? { name: room.players.w.name, connected: room.players.w.connected } : null,
-      b: room.players.b ? { name: room.players.b.name, connected: room.players.b.connected } : null
+      w: room.players.w ? { name: room.players.w.name, connected: room.players.w.connected, elo: room.players.w.elo || 500 } : null,
+      b: room.players.b ? { name: room.players.b.name, connected: room.players.b.connected, elo: room.players.b.elo || 500 } : null
     },
     chat: room.chat.slice(-50)
   };
@@ -429,6 +496,69 @@ setInterval(() => {
   }
 }, 15 * 60 * 1000);
 
+const matchmakingQueue = [];
+
+setInterval(() => {
+  const now = Date.now();
+  const matched = new Set();
+  for (let i = 0; i < matchmakingQueue.length; i++) {
+    if (matched.has(i)) continue;
+    const p1 = matchmakingQueue[i];
+    const waitSec1 = Math.floor((now - p1.joinedAt) / 1000);
+    const range1 = 100 + Math.floor(waitSec1 / 3) * 75;
+
+    let bestIdx = -1;
+    let bestDiff = Infinity;
+    for (let j = i + 1; j < matchmakingQueue.length; j++) {
+      if (matched.has(j)) continue;
+      const p2 = matchmakingQueue[j];
+      if (p1.timeControl !== p2.timeControl) continue;
+      if (p1.userId && p2.userId && p1.userId === p2.userId) continue;
+
+      const waitSec2 = Math.floor((now - p2.joinedAt) / 1000);
+      const range2 = 100 + Math.floor(waitSec2 / 3) * 75;
+      const diff = Math.abs(p1.elo - p2.elo);
+      if (diff <= Math.max(range1, range2) && diff < bestDiff) {
+        bestDiff = diff;
+        bestIdx = j;
+      }
+    }
+
+    if (bestIdx !== -1) {
+      matched.add(i);
+      matched.add(bestIdx);
+      const p2 = matchmakingQueue[bestIdx];
+      const created = createRoomRecord({
+        timeControl: p1.timeControl,
+        colorPreference: 'random',
+        allowEval: true,
+        hostName: p1.name
+      });
+      io.to(p1.socketId).emit('matchmaking:found', {
+        roomId: created.roomId,
+        opponentName: p2.name,
+        opponentElo: p2.elo
+      });
+      io.to(p2.socketId).emit('matchmaking:found', {
+        roomId: created.roomId,
+        opponentName: p1.name,
+        opponentElo: p1.elo
+      });
+    } else {
+      io.to(p1.socketId).emit('matchmaking:status', {
+        waitSec: waitSec1,
+        range: range1,
+        elo: p1.elo
+      });
+    }
+  }
+  if (matched.size > 0) {
+    for (let k = matchmakingQueue.length - 1; k >= 0; k--) {
+      if (matched.has(k)) matchmakingQueue.splice(k, 1);
+    }
+  }
+}, 1000);
+
 io.on('connection', (socket) => {
   const cookies = parseCookies(socket.handshake.headers.cookie);
   const authUser = db.getUserBySession(cookies.crownfall_sid);
@@ -440,6 +570,29 @@ io.on('connection', (socket) => {
   }
 
   let joinedRoomId = null;
+
+  socket.on('matchmaking:join', ({ timeControl = '10+0', playerName, guestElo = 500 }) => {
+    for (let k = matchmakingQueue.length - 1; k >= 0; k--) {
+      if (matchmakingQueue[k].socketId === socket.id) matchmakingQueue.splice(k, 1);
+    }
+    const elo = authUser && typeof authUser.elo === 'number' ? authUser.elo : (Number(guestElo) || 500);
+    const name = String(authUser?.displayName || playerName || 'Player').slice(0, 24);
+    matchmakingQueue.push({
+      socketId: socket.id,
+      userId: authUserId,
+      name,
+      elo,
+      timeControl,
+      joinedAt: Date.now()
+    });
+    socket.emit('matchmaking:status', { waitSec: 0, range: 100, elo });
+  });
+
+  socket.on('matchmaking:cancel', () => {
+    for (let k = matchmakingQueue.length - 1; k >= 0; k--) {
+      if (matchmakingQueue[k].socketId === socket.id) matchmakingQueue.splice(k, 1);
+    }
+  });
 
   socket.on('room:join', ({ roomId, playerName, playerToken }) => {
     const code = String(roomId || '').toUpperCase().trim();
@@ -453,6 +606,7 @@ io.on('connection', (socket) => {
     socket.join(code);
 
     const cleanName = String(authUser?.displayName || playerName || 'Guest').trim().slice(0, 24) || 'Guest';
+    const playerElo = authUser && typeof authUser.elo === 'number' ? authUser.elo : 500;
     const token = authUserId ? `uid_${authUserId}` : String(playerToken || socket.id);
     let assignedColor = 'spectator';
 
@@ -461,22 +615,24 @@ io.on('connection', (socket) => {
       room.players.w.connected = true;
       room.players.w.name = cleanName;
       room.players.w.userId = authUserId || room.players.w.userId;
+      room.players.w.elo = authUser ? playerElo : (room.players.w.elo || 500);
       assignedColor = 'w';
     } else if (room.players.b && room.players.b.token === token) {
       room.players.b.socketId = socket.id;
       room.players.b.connected = true;
       room.players.b.name = cleanName;
       room.players.b.userId = authUserId || room.players.b.userId;
+      room.players.b.elo = authUser ? playerElo : (room.players.b.elo || 500);
       assignedColor = 'b';
     } else if (!room.players.w && !room.players.b) {
       const c = room.hostColorPreference;
-      room.players[c] = { token, socketId: socket.id, name: cleanName, connected: true, userId: authUserId };
+      room.players[c] = { token, socketId: socket.id, name: cleanName, connected: true, userId: authUserId, elo: playerElo };
       assignedColor = c;
     } else if (!room.players.w) {
-      room.players.w = { token, socketId: socket.id, name: cleanName, connected: true, userId: authUserId };
+      room.players.w = { token, socketId: socket.id, name: cleanName, connected: true, userId: authUserId, elo: playerElo };
       assignedColor = 'w';
     } else if (!room.players.b) {
-      room.players.b = { token, socketId: socket.id, name: cleanName, connected: true, userId: authUserId };
+      room.players.b = { token, socketId: socket.id, name: cleanName, connected: true, userId: authUserId, elo: playerElo };
       assignedColor = 'b';
     }
 
@@ -497,8 +653,9 @@ io.on('connection', (socket) => {
     if (myColor !== room.game.turn) return;
 
     const now = Date.now();
+    const moveElapsedMs = room.lastTickAt ? Math.max(0, now - room.lastTickAt) : 0;
     if (room.baseMs > 0 && room.lastTickAt) {
-      const elapsed = now - room.lastTickAt;
+      const elapsed = moveElapsedMs;
       room.clocks[myColor] = Math.max(0, room.clocks[myColor] - elapsed);
       if (room.clocks[myColor] === 0) {
         room.over = true;
@@ -515,9 +672,11 @@ io.on('connection', (socket) => {
       return;
     }
 
+    move.timeSpentMs = moveElapsedMs;
     if (room.baseMs > 0) {
       room.clocks[myColor] += room.incMs;
       room.lastTickAt = now;
+      move.clockAfterMs = room.clocks[myColor];
     }
 
     room.drawOfferBy = null;
@@ -618,6 +777,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    for (let k = matchmakingQueue.length - 1; k >= 0; k--) {
+      if (matchmakingQueue[k].socketId === socket.id) matchmakingQueue.splice(k, 1);
+    }
     if (authUserId && onlineUsers.has(authUserId)) {
       onlineUsers.get(authUserId).delete(socket.id);
       if (onlineUsers.get(authUserId).size === 0) onlineUsers.delete(authUserId);

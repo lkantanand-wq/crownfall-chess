@@ -16,6 +16,8 @@
       <a href="/" class="nav-link">Home</a>
       <a href="/lobby" class="nav-link active">Play Online</a>
       <a href="/friends" class="nav-link">Friends</a>
+      <a href="/history" class="nav-link nav-auth-only" style="display:none;">History</a>
+      <a href="/openings" class="nav-link">Openings</a>
       <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
       <a href="/rules" class="nav-link">Rules &amp; Guide</a>
       <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
@@ -25,8 +27,31 @@
   <main class="container">
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 2rem; margin-bottom: 6px;">Match Lobby</h1>
-      <p style="color: var(--text-secondary);">Create a private room for your friend or join with a 6-character room code.</p>
+      <p style="color: var(--text-secondary);">Find a ranked opponent near your Elo rating, create a private room, or join via code.</p>
     </div>
+
+    <!-- Elo Ranked Matchmaking Banner -->
+    <section class="card" style="margin-bottom: 24px; border-color: rgba(226, 183, 84, 0.35);">
+      <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px;">
+        <div>
+          <div style="font-size:0.78rem; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:0.06em;">Ranked Online Matchmaking</div>
+          <h2 style="font-size:1.35rem; margin: 4px 0;">Play Opponent Near Your Elo (<span id="my-elo-badge" style="color:var(--gold);">500</span>)</h2>
+          <p id="mm-status-text" style="color:var(--text-secondary); font-size:0.9rem;">Pairs you with an online player within ±100 Elo (widens automatically if needed).</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <select id="mm-tc-select" class="select" style="width:auto;">
+            <option value="1+0">1+0 Bullet</option>
+            <option value="3+2">3+2 Blitz</option>
+            <option value="5+0">5+0 Blitz</option>
+            <option value="10+0" selected>10+0 Rapid</option>
+            <option value="15+10">15+10 Classical</option>
+          </select>
+          <button id="mm-find-btn" class="btn btn-primary">Find Ranked Match</button>
+          <button id="mm-cancel-btn" class="btn btn-danger" style="display:none;">Cancel Search</button>
+          <a id="mm-bot-fallback" href="/analysis" class="btn" style="display:none;">Play Similar-Elo Bot</a>
+        </div>
+      </div>
+    </section>
 
     <div class="lobby-grid">
       <section class="card">
@@ -91,14 +116,14 @@
         </button>
 
         <div style="margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-subtle); font-size: 0.86rem; color: var(--text-secondary);">
-          Playing solo? Head to the <a href="/analysis" style="color: var(--gold); text-decoration: underline;">Analysis &amp; Bot</a> page to test openings or play against the built-in engine.
+          Want to practice solo? Play rated robots on the <a href="/analysis" style="color: var(--gold); text-decoration: underline;">Analysis &amp; Bot</a> page.
         </div>
       </section>
     </div>
   </main>
 
-  <script src="/js/lobby.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/nav.js"></script>
+  <script src="/js/lobby.js"></script>
 </body>
 </html>

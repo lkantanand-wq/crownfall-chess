@@ -8,6 +8,57 @@
   hostNameInput.value = savedName;
   joinNameInput.value = savedName;
 
+  // Elo Matchmaking
+  const mmFindBtn = document.getElementById('mm-find-btn');
+  const mmCancelBtn = document.getElementById('mm-cancel-btn');
+  const mmStatusText = document.getElementById('mm-status-text');
+  const mmBotFallback = document.getElementById('mm-bot-fallback');
+  const myEloBadge = document.getElementById('my-elo-badge');
+  const mmSocket = typeof io === 'function' ? io() : null;
+
+  let currentElo = Number(localStorage.getItem('crownfall_guest_elo') || 500);
+  myEloBadge.textContent = currentElo;
+
+  fetch('/api/auth/me')
+    .then((r) => r.json())
+    .then((d) => {
+      if (d.user && typeof d.user.elo === 'number') {
+        currentElo = d.user.elo;
+        myEloBadge.textContent = currentElo;
+      }
+    })
+    .catch(() => {});
+
+  if (mmSocket) {
+    mmSocket.on('matchmaking:status', ({ waitSec, range, elo }) => {
+      mmStatusText.textContent = `Searching for opponent within ±${range} Elo of ${elo} (${waitSec}s)...`;
+      if (waitSec >= 8) mmBotFallback.style.display = 'inline-flex';
+    });
+
+    mmSocket.on('matchmaking:found', ({ roomId, opponentName, opponentElo }) => {
+      mmStatusText.style.color = 'var(--emerald)';
+      mmStatusText.textContent = `Match found vs ${opponentName} (${opponentElo} Elo)! Joining arena...`;
+      window.location.href = `/game/${roomId}`;
+    });
+  }
+
+  mmFindBtn.addEventListener('click', () => {
+    if (!mmSocket) return;
+    const tc = document.getElementById('mm-tc-select').value;
+    const name = hostNameInput.value.trim() || 'Player';
+    mmFindBtn.style.display = 'none';
+    mmCancelBtn.style.display = 'inline-flex';
+    mmSocket.emit('matchmaking:join', { timeControl: tc, playerName: name, guestElo: currentElo });
+  });
+
+  mmCancelBtn.addEventListener('click', () => {
+    if (mmSocket) mmSocket.emit('matchmaking:cancel');
+    mmFindBtn.style.display = 'inline-flex';
+    mmCancelBtn.style.display = 'none';
+    mmBotFallback.style.display = 'none';
+    mmStatusText.textContent = 'Pairs you with an online player within ±100 Elo (widens automatically if needed).';
+  });
+
   document.querySelectorAll('#tc-pills .pill-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#tc-pills .pill-btn').forEach((b) => b.classList.remove('active'));

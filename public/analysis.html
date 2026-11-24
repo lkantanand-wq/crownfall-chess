@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Analysis &amp; Bot — Crownfall Chess</title>
+  <title>Game Review &amp; Analysis — Crownfall Chess</title>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -16,6 +16,8 @@
       <a href="/" class="nav-link">Home</a>
       <a href="/lobby" class="nav-link">Play Online</a>
       <a href="/friends" class="nav-link">Friends</a>
+      <a href="/history" class="nav-link nav-auth-only" style="display:none;">History</a>
+      <a href="/openings" class="nav-link">Openings</a>
       <a href="/analysis" class="nav-link active">Analysis &amp; Bot</a>
       <a href="/rules" class="nav-link">Rules &amp; Guide</a>
       <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
@@ -23,22 +25,23 @@
   </nav>
 
   <main class="arena-shell">
+    <!-- LEFT COLUMN: Board, Eval Bar, Eval Graph, Navigation -->
     <div class="board-column">
       <div class="player-bar">
         <div class="player-info">
-          <div class="avatar black">AI</div>
+          <div class="avatar black" id="top-avatar">B</div>
           <div class="player-meta">
             <div class="player-name-row">
-              <span id="mode-title">Free Analysis &amp; Bot Arena</span>
+              <span id="top-player-label">Black</span>
             </div>
-            <div id="best-move-hint" class="captured-row">Best move: calculating...</div>
+            <div id="top-captured" class="captured-row"></div>
           </div>
         </div>
-        <div id="turn-badge" class="clock" style="font-size: 0.9rem; min-width: 110px;">White Turn</div>
+        <div id="turn-badge" class="clock" style="font-size: 0.88rem; min-width: 112px;">White Turn</div>
       </div>
 
       <div class="board-and-eval">
-        <div class="eval-wrapper">
+        <div id="eval-wrapper" class="eval-wrapper">
           <div id="eval-score" class="eval-score">0.0</div>
           <div id="eval-bar" class="eval-bar">
             <div id="eval-fill-white" class="eval-fill-white"></div>
@@ -48,23 +51,118 @@
 
         <div class="board-frame">
           <div id="chessboard" class="chessboard"></div>
+          <svg id="best-arrow-overlay" class="best-arrow-overlay" viewBox="0 0 800 800"></svg>
         </div>
+      </div>
+
+      <div class="player-bar">
+        <div class="player-info">
+          <div class="avatar white" id="bottom-avatar">W</div>
+          <div class="player-meta">
+            <div class="player-name-row">
+              <span id="bottom-player-label">White</span>
+            </div>
+            <div id="bottom-captured" class="captured-row"></div>
+          </div>
+        </div>
+        <div id="opening-badge" style="font-size:0.8rem; color:var(--gold); font-weight:600; text-align:right;">Starting Position</div>
+      </div>
+
+      <!-- Clickable Evaluation Graph -->
+      <div class="eval-graph-wrap">
+        <div style="display:flex; justify-content:space-between; font-size:0.74rem; color:var(--text-secondary); margin-bottom:4px;">
+          <span>EVALUATION GRAPH (Click any point to jump)</span>
+          <span id="engine-meta-label">Crownfall Engine • Depth 2</span>
+        </div>
+        <canvas id="eval-graph" class="eval-graph-canvas" width="560" height="110"></canvas>
       </div>
     </div>
 
+    <!-- RIGHT COLUMN: Review Summary, Coach, Retry, MultiPV, Moves, Controls -->
     <aside class="sidebar">
       <div class="panel">
-        <div class="panel-header"><span>Mode &amp; Theme</span></div>
-        <div class="form-group" style="margin-bottom: 8px;">
-          <select id="mode-select" class="select">
-            <option value="analysis">Free Analysis (Both Sides)</option>
-            <option value="bot-easy">Play vs Bot (Easy — Depth 1)</option>
-            <option value="bot-med">Play vs Bot (Medium — Depth 2)</option>
-            <option value="bot-hard">Play vs Bot (Hard — Depth 3)</option>
+        <div class="panel-header">
+          <span>Game Review &amp; Coach</span>
+          <div style="display:flex; gap:6px;">
+            <button id="analyze-all-btn" class="btn btn-sm btn-primary" style="padding:4px 9px; font-size:0.74rem;">Review Game</button>
+            <button id="cancel-review-btn" class="btn btn-sm btn-danger" style="display:none; padding:4px 9px; font-size:0.74rem;">Cancel</button>
+          </div>
+        </div>
+
+        <div id="retry-banner" class="retry-banner" style="display:none;">
+          <div style="font-weight:700; color:#f0c15c; margin-bottom:4px;">Retry Mistake Mode</div>
+          <div id="retry-prompt-text">Find a better move on the board!</div>
+          <button id="retry-exit-btn" class="btn btn-sm" style="margin-top:6px;">Exit Retry</button>
+        </div>
+
+        <div class="coach-section-label">Chess Coach</div>
+        <div class="coach-wrap">
+          <div class="coach-avatar" id="coach-avatar">♞</div>
+          <div id="review-card" class="coach-bubble">
+            <div>Load a game from History, paste a PGN below, or play moves to review.</div>
+          </div>
+        </div>
+        <div id="coach-explanation" style="display:none;"></div>
+
+        <div id="review-progress-wrap" style="display:none;">
+          <div class="progress-bar-track"><div id="review-progress-fill" class="progress-bar-fill"></div></div>
+        </div>
+
+        <div id="accuracy-row" class="accuracy-row" style="display:none;">
+          <div class="accuracy-box">
+            <div style="font-size:0.7rem; color:var(--text-secondary);">WHITE ACC</div>
+            <div id="acc-white" class="accuracy-val">--%</div>
+            <div id="perf-white" style="font-size:0.68rem; color:var(--text-muted);"></div>
+          </div>
+          <div class="accuracy-box">
+            <div style="font-size:0.7rem; color:var(--text-secondary);">BLACK ACC</div>
+            <div id="acc-black" class="accuracy-val">--%</div>
+            <div id="perf-black" style="font-size:0.68rem; color:var(--text-muted);"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MultiPV Engine Lines -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Engine Lines (MultiPV)</span>
+          <select id="depth-select" class="select" style="width:auto; padding:3px 8px; font-size:0.75rem;">
+            <option value="2" selected>Depth 2 (Fast)</option>
+            <option value="3">Depth 3 (Balanced)</option>
+            <option value="4">Depth 4 (Deep)</option>
           </select>
         </div>
-        <div class="form-group" style="margin-bottom: 10px;">
+        <div id="pv-list" class="pv-list"></div>
+      </div>
+
+      <!-- Move List & Nav -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Moves</span>
+          <button id="reset-var-btn" class="btn btn-sm" style="display:none; padding:3px 8px; font-size:0.72rem;">Reset to Game</button>
+        </div>
+        <div id="move-list" class="move-list" style="height: 170px;"></div>
+        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-top:8px;">
+          <button id="nav-start" class="btn btn-sm">|&lt;</button>
+          <button id="nav-prev" class="btn btn-sm">&lt;</button>
+          <button id="nav-next" class="btn btn-sm">&gt;</button>
+          <button id="nav-end" class="btn btn-sm">&gt;|</button>
+        </div>
+      </div>
+
+      <!-- Mode, Theme & Controls -->
+      <div class="panel">
+        <div class="panel-header"><span>Mode, Theme &amp; Controls</span></div>
+        <div style="display:grid; gap:8px; margin-bottom:8px;">
+          <select id="mode-select" class="select">
+            <option value="analysis">Free Analysis / Self-Explore</option>
+            <option value="bot-400">vs. PawnBot (400 Elo — Rated)</option>
+            <option value="bot-650">vs. KnightBot (650 Elo — Rated)</option>
+            <option value="bot-950">vs. RookBot (950 Elo — Rated)</option>
+            <option value="bot-1250">vs. QueenBot (1250 Elo — Rated)</option>
+          </select>
           <select id="theme-select" class="select" aria-label="Board Theme">
+            <option value="classic-green">Theme: Classic Green (Chess.com)</option>
             <option value="emerald">Theme: Emerald Slate</option>
             <option value="walnut">Theme: Classic Walnut</option>
             <option value="ocean">Theme: Midnight Ocean</option>
@@ -74,40 +172,79 @@
         </div>
         <div class="controls-grid">
           <button id="flip-btn" class="btn btn-sm">Flip Board</button>
-          <button id="reset-btn" class="btn btn-sm btn-danger">Reset Board</button>
+          <button id="toggle-arrow-btn" class="btn btn-sm">Arrow: On</button>
+          <button id="toggle-eval-btn" class="btn btn-sm">Eval Bar: On</button>
+          <button id="toggle-coords-btn" class="btn btn-sm">Coords: On</button>
+          <button id="reset-btn" class="btn btn-sm btn-danger" style="grid-column: span 2;">New / Clear Board</button>
         </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-header"><span>Recent Games (Last 3)</span></div>
-        <div id="recent-games-list" class="saved-games-list"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-header"><span>Move History</span></div>
-        <div id="move-list" class="move-list" style="height: 200px;"></div>
-        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-top:10px;">
-          <button id="nav-start" class="btn btn-sm">|&lt;</button>
-          <button id="nav-prev" class="btn btn-sm">&lt;</button>
-          <button id="nav-next" class="btn btn-sm">&gt;</button>
-          <button id="nav-end" class="btn btn-sm">&gt;|</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-header"><span>FEN Position</span></div>
-        <input id="fen-input" class="input" type="text" style="font-family:var(--font-mono); font-size:0.78rem; margin-bottom:8px;" />
-        <button id="load-fen-btn" class="btn btn-sm btn-primary" style="width:100%;">Load FEN</button>
       </div>
     </aside>
   </main>
 
+  <!-- BELOW: Detailed Analysis Tabs -->
+  <section class="analysis-tabs">
+    <div class="tab-bar">
+      <button type="button" class="tab-btn active" data-tab="key-moments">Key Moments &amp; Retry</button>
+      <button type="button" class="tab-btn" data-tab="stats">Stats &amp; Phases</button>
+      <button type="button" class="tab-btn" data-tab="opening">Opening &amp; Material</button>
+      <button type="button" class="tab-btn" data-tab="time">Time Analysis</button>
+      <button type="button" class="tab-btn" data-tab="pgn">Save, PGN &amp; History</button>
+    </div>
+
+    <div id="tab-key-moments" class="tab-panel active">
+      <div id="key-moments-list" class="saved-games-list">
+        <div style="color:var(--text-muted); font-size:0.88rem;">Run <strong>Review Game</strong> to detect blunders, mistakes, missed wins, and brilliant moves.</div>
+      </div>
+    </div>
+
+    <div id="tab-stats" class="tab-panel">
+      <div id="stats-content" class="stats-grid">
+        <div style="color:var(--text-muted); font-size:0.88rem;">Run <strong>Review Game</strong> to calculate phase accuracy and move classification counts.</div>
+      </div>
+    </div>
+
+    <div id="tab-opening" class="tab-panel">
+      <div id="opening-content" style="display:grid; gap:12px;"></div>
+    </div>
+
+    <div id="tab-time" class="tab-panel">
+      <div id="time-content" style="font-size:0.9rem; color:var(--text-secondary);"></div>
+    </div>
+
+    <div id="tab-pgn" class="tab-panel">
+      <div class="lobby-grid" style="gap:16px;">
+        <div>
+          <div style="font-weight:700; margin-bottom:8px;">Recent Games (Last 3 in Browser)</div>
+          <div id="recent-games-list" class="saved-games-list" style="margin-bottom:14px;"></div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="save-analysis-btn" class="btn btn-sm btn-emerald">Save Analysis to Account</button>
+            <button id="delete-analysis-btn" class="btn btn-sm btn-danger" style="display:none;">Delete Saved Analysis</button>
+            <button id="export-pgn-btn" class="btn btn-sm btn-primary">Export Annotated PGN</button>
+            <button id="copy-fen-btn" class="btn btn-sm">Copy FEN</button>
+          </div>
+          <p id="save-status-msg" style="font-size:0.82rem; color:var(--emerald); margin-top:8px;"></p>
+        </div>
+        <div>
+          <div style="font-weight:700; margin-bottom:8px;">Load PGN or FEN</div>
+          <textarea id="pgn-input" class="input" rows="4" placeholder="Paste full PGN here..." style="font-family:var(--font-mono); font-size:0.78rem; margin-bottom:8px;"></textarea>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <button id="load-pgn-btn" class="btn btn-sm btn-primary">Load PGN</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <input id="fen-input" class="input" type="text" placeholder="FEN position" style="font-family:var(--font-mono); font-size:0.78rem;" />
+            <button id="load-fen-btn" class="btn btn-sm">Load FEN</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="/socket.io/socket.io.js"></script>
   <script src="/shared/chess-engine.js"></script>
   <script src="/js/pieces.js"></script>
   <script src="/js/sound.js"></script>
   <script src="/js/storage.js"></script>
-  <script src="/js/analysis.js"></script>
-  <script src="/socket.io/socket.io.js"></script>
   <script src="/js/nav.js"></script>
+  <script src="/js/analysis.js"></script>
 </body>
 </html>

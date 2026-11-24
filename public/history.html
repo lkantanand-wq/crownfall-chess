@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game History — Crownfall Chess</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">♛</span>
+      <span>CROWNFALL</span>
+    </a>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/lobby" class="nav-link">Play Online</a>
+      <a href="/friends" class="nav-link">Friends</a>
+      <a href="/history" class="nav-link active">History</a>
+      <a href="/openings" class="nav-link">Openings</a>
+      <a href="/analysis" class="nav-link">Analysis &amp; Bot</a>
+      <a href="/account" id="nav-account-link" class="nav-link">Sign In</a>
+    </div>
+  </nav>
+
+  <main class="container" style="max-width: 960px;">
+    <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px;">
+      <div>
+        <h1 style="font-size:1.9rem; margin-bottom:4px;">Match History</h1>
+        <p id="history-subtitle" style="color:var(--text-secondary);">Review your previous matches with the Game Review engine.</p>
+      </div>
+      <a href="/lobby" class="btn btn-primary">New Match</a>
+    </div>
+
+    <div id="history-guest-banner" class="card" style="display:none; margin-bottom:20px; border-color:rgba(226,183,84,0.4);">
+      <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px;">
+        <div>
+          <strong style="color:var(--gold);">Sign in to sync your full game history</strong>
+          <div style="font-size:0.86rem; color:var(--text-secondary);">Guests only see the last 3 games stored in this browser. Sign in with Google or an account to save up to 50 games across devices.</div>
+        </div>
+        <a href="/account" class="btn btn-sm btn-primary">Sign In</a>
+      </div>
+    </div>
+
+    <section class="card" style="margin-bottom:20px;">
+      <div class="panel-header" style="margin-bottom:14px;">
+        <span id="history-list-title">Saved Account Games</span>
+        <span id="history-count" style="color:var(--gold);">0 Games</span>
+      </div>
+      <div id="history-games-list" class="saved-games-list"></div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/storage.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    (async function () {
+      const listEl = document.getElementById('history-games-list');
+      const countEl = document.getElementById('history-count');
+      const guestBanner = document.getElementById('history-guest-banner');
+      const titleEl = document.getElementById('history-list-title');
+      const subEl = document.getElementById('history-subtitle');
+
+      function renderGames(games, isAccount) {
+        listEl.innerHTML = '';
+        countEl.textContent = `${games.length} Game${games.length === 1 ? '' : 's'}`;
+        if (!games.length) {
+          listEl.innerHTML = '<div style="color:var(--text-muted); font-size:0.9rem;">No games recorded yet. Finish a match to see it here!</div>';
+          return;
+        }
+        games.forEach((g) => {
+          const row = document.createElement('div');
+          row.className = 'saved-game-item';
+          const dt = g.playedAt ? new Date(g.playedAt).toLocaleString() : '';
+          row.innerHTML = `
+            <div class="saved-game-meta">
+              <div class="saved-game-title">${g.whiteName || 'White'} vs ${g.blackName || 'Black'} (${g.resultLabel || '*'})</div>
+              <div class="saved-game-sub">${g.timeLabel || 'Match'} • ${(g.history || []).length} moves • ${g.reason || ''}${dt ? ' • ' + dt : ''}</div>
+            </div>
+          `;
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-sm btn-primary';
+          btn.textContent = 'Analyze Game';
+          btn.addEventListener('click', () => {
+            sessionStorage.setItem('crownfall_analysis_history', JSON.stringify(g.history || []));
+            if (isAccount && g.id) {
+              window.location.href = `/analysis?gameId=${encodeURIComponent(g.id)}`;
+            } else {
+              window.location.href = '/analysis';
+            }
+          });
+          row.appendChild(btn);
+          listEl.appendChild(row);
+        });
+      }
+
+      try {
+        const meRes = await fetch('/api/auth/me');
+        const meData = await meRes.json();
+        if (meData.user) {
+          subEl.textContent = `Signed in as ${meData.user.displayName} (Elo: ${meData.user.elo || 500})`;
+          const gRes = await fetch('/api/games');
+          const gData = await gRes.json();
+          renderGames(gData.games || [], true);
+          return;
+        }
+      } catch (_) {}
+
+      guestBanner.style.display = 'block';
+      titleEl.textContent = 'Recent Browser Games (Last 3)';
+      renderGames(CrownfallStorage.getRecentGames(), false);
+    })();
+  </script>
+</body>
+</html>

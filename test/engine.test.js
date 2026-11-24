@@ -44,3 +44,23 @@ assert.ok(res.scoreCp > 800, 'White up a Queen should have > +8.00 evaluation');
 assert.ok(res.bestMove, 'Should return a best move');
 
 console.log('All Crownfall Chess engine tests passed!');
+
+// 7. MultiPV, ECO Opening Detection, PGN Parse & Export
+const { detectOpening, detectPhase, parsePGN, exportAnnotatedPGN } = require('../shared/chess-engine');
+const pgnSample = `[Event "Test"]
+[White "Alice"]
+[Black "Bob"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 1-0`;
+const parsed = parsePGN(pgnSample);
+assert.strictEqual(parsed.history.length, 6, 'Should parse 6 half-moves from PGN');
+const op = detectOpening(parsed.history);
+assert.strictEqual(op.eco, 'C53', 'Should detect C53 Giuoco Piano');
+assert.strictEqual(detectPhase(new ChessGame(parsed.finalFen).board, 6), 'opening');
+const lines = new ChessGame(parsed.finalFen).searchMultiPV(2, 3);
+assert.strictEqual(lines.length, 3, 'searchMultiPV should return 3 candidate lines');
+assert.ok(lines[0].pvSan && lines[0].pvSan.length >= 1, 'Each PV line should include SAN moves');
+const exported = exportAnnotatedPGN({ whiteName: 'Alice', blackName: 'Bob', resultLabel: '1-0', eco: op.eco, opening: op.name }, parsed.history);
+assert.ok(exported.includes('C53') && exported.includes('Bc4'), 'Exported PGN should include ECO and moves');
+console.log('All MultiPV, ECO, and PGN tests passed!');
